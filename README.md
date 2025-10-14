@@ -1,4 +1,4 @@
-# SGD Forum API
+# SDG Forum API
 
 Starter Express.js REST API using Prisma ORM and MySQL. Includes example routes and Prisma models for `User` and `Post`.
 
