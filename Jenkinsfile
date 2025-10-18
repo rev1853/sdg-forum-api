@@ -25,13 +25,13 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh 'docker compose build dex-engine-main'
+                sh 'docker compose build'
             }
         }
         
         stage('Deploy') {
             steps {
-                sh 'docker compose up -d dex-engine-main'
+                sh 'docker compose up -d'
                 sh 'ls'
             }
         }
