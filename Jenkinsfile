@@ -38,7 +38,7 @@ pipeline {
 
         stage('Prisma Migrate') {
             steps {
-                sh 'docker compose run --rm api npx prisma migrate reset'
+                sh 'docker compose run --rm api npx prisma migrate reset --force'
                 sh 'docker compose run --rm api npx prisma migrate deploy'
             }
         }
