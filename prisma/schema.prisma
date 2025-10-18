@@ -46,10 +46,10 @@ model User {
     created_at      DateTime @default(now())
 
     // relations
-    threads       Thread[]        @relation("ThreadAuthor")
-    interactions  Interaction[]
-    reportsFiled  Report[]        @relation("ReportReporter")
-    resetTokens   PasswordResetToken[]
+    threads      Thread[]             @relation("ThreadAuthor")
+    interactions Interaction[]
+    reportsFiled Report[]             @relation("ReportReporter")
+    resetTokens  PasswordResetToken[]
 
     @@index([username])
     @@index([created_at])
@@ -68,23 +68,23 @@ model Category {
 }
 
 model Thread {
-    id         String       @id @default(cuid())
-    author_id  String
+    id               String       @id @default(cuid())
+    author_id        String
     parent_thread_id String?
-    title      String
-    body       String
-    image      String?
-    tags       Json         @default("[]")
-    status     ThreadStatus @default(ACTIVE)
-    created_at DateTime     @default(now())
-    updated_at DateTime     @updatedAt
+    title            String
+    body             String
+    image            String?
+    tags             Json         @default("[]")
+    status           ThreadStatus @default(ACTIVE)
+    created_at       DateTime     @default(now())
+    updated_at       DateTime     @updatedAt
 
-    author       User            @relation("ThreadAuthor", fields: [author_id], references: [id], onDelete: Cascade)
-    parent       Thread?         @relation("ThreadReplies", fields: [parent_thread_id], references: [id], onDelete: Cascade)
-    replies      Thread[]        @relation("ThreadReplies")
+    author       User             @relation("ThreadAuthor", fields: [author_id], references: [id], onDelete: Cascade)
+    parent       Thread?          @relation("ThreadReplies", fields: [parent_thread_id], references: [id], onDelete: Cascade)
+    replies      Thread[]         @relation("ThreadReplies")
     categories   ThreadCategory[]
     interactions Interaction[]
-    reports      Report[]        @relation("ThreadReports")
+    reports      Report[]         @relation("ThreadReports")
 
     @@index([author_id])
     @@index([parent_thread_id])
@@ -137,12 +137,12 @@ model Report {
 }
 
 model PasswordResetToken {
-    id          String   @id @default(cuid())
-    user_id     String
-    token_hash  String   @unique
-    expires_at  DateTime
-    used_at     DateTime?
-    created_at  DateTime @default(now())
+    id         String    @id @default(cuid())
+    user_id    String
+    token_hash String    @unique
+    expires_at DateTime
+    used_at    DateTime?
+    created_at DateTime  @default(now())
 
     user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
