@@ -5,9 +5,9 @@ const options = {
   definition: {
     openapi: '3.0.3',
     info: {
-      title: 'SDG Forum API',
+      title: 'SDG Threads API',
       version: '1.0.0',
-      description: 'Social media forum API documentation'
+      description: 'API documentation for the SDG-themed discussion platform'
     },
     components: {
       securitySchemes: {
@@ -26,4 +26,3 @@ const options = {
 const swaggerSpec = swaggerJsdoc(options);
 
 module.exports = swaggerSpec;
-

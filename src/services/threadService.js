@@ -1,48 +1,414 @@
 const prisma = require('../prisma');
 const ApiError = require('../utils/ApiError');
 
-const createThread = async (forum, authorId, { body, mediaPath }) => {
-  if (!body) {
+const sanitizeTags = (tags) => {
+  if (!tags) {
+    return [];
+  }
+
+  if (typeof tags === 'string') {
+    return tags
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+      .map((tag) => tag.toLowerCase());
+  }
+
+  if (Array.isArray(tags)) {
+    return [
+      ...new Set(
+        tags
+          .map((tag) => (typeof tag === 'string' ? tag.trim().toLowerCase() : ''))
+          .filter(Boolean)
+      )
+    ];
+  }
+
+  throw new ApiError(400, 'Tags must be a string or an array of strings');
+};
+
+const validateCategorySelection = async (categoryIds) => {
+  if (!Array.isArray(categoryIds)) {
+    throw new ApiError(400, 'categoryIds must be an array');
+  }
+
+  if (categoryIds.length < 1 || categoryIds.length > 3) {
+    throw new ApiError(400, 'You must choose between 1 and 3 categories');
+  }
+
+  const uniqueIds = [...new Set(categoryIds)];
+  if (uniqueIds.length !== categoryIds.length) {
+    throw new ApiError(400, 'Duplicate categories are not allowed');
+  }
+
+  const categories = await prisma.category.findMany({
+    where: { id: { in: uniqueIds } },
+    select: { id: true }
+  });
+
+  if (categories.length !== uniqueIds.length) {
+    throw new ApiError(404, 'One or more categories do not exist');
+  }
+
+  return uniqueIds;
+};
+
+const ensureActiveThread = async (threadId) => {
+  const thread = await prisma.thread.findFirst({
+    where: { id: threadId, status: 'ACTIVE' },
+    select: { id: true }
+  });
+
+  if (!thread) {
+    throw new ApiError(404, 'Thread not found');
+  }
+
+  return thread;
+};
+
+const createThread = async ({
+  authorId,
+  title,
+  body,
+  tags,
+  categoryIds,
+  imagePath,
+  parentThreadId
+}) => {
+  if (!body || typeof body !== 'string' || !body.trim()) {
     throw new ApiError(400, 'Thread body is required');
   }
 
-  const post = await prisma.post.create({
+  const sanitizedTags = sanitizeTags(tags);
+  const data = {
+    author_id: authorId,
+    title: title ? title.trim() : null,
+    body: body.trim(),
+    image: imagePath || null,
+    tags: sanitizedTags,
+    parent_thread_id: parentThreadId || null
+  };
+
+  let categoryConnect = undefined;
+
+  if (parentThreadId) {
+    await ensureActiveThread(parentThreadId);
+
+    // Replies can optionally specify categories; otherwise inherit from parent
+    if (Array.isArray(categoryIds) && categoryIds.length > 0) {
+      const validIds = await validateCategorySelection(categoryIds);
+      categoryConnect = {
+        create: validIds.map((id) => ({
+          category: { connect: { id } }
+        }))
+      };
+    }
+
+    if (!data.title) {
+      const parent = await prisma.thread.findUnique({
+        where: { id: parentThreadId },
+        select: { title: true }
+      });
+      data.title = parent?.title ? `Re: ${parent.title}` : 'Reply';
+    }
+  } else {
+    if (!title || !title.trim()) {
+      throw new ApiError(400, 'Thread title is required');
+    }
+
+    const validIds = await validateCategorySelection(categoryIds || []);
+    categoryConnect = {
+      create: validIds.map((id) => ({
+        category: { connect: { id } }
+      }))
+    };
+  }
+
+  const thread = await prisma.thread.create({
     data: {
-      body: body.trim(),
-      media: mediaPath || null,
-      forum_id: forum.id,
-      author_id: authorId
+      ...data,
+      categories: categoryConnect
     },
     include: {
-      author: { select: { id: true, username: true } },
-      forum: { select: { id: true, slug: true, title: true } }
+      author: { select: { id: true, username: true, name: true } },
+      categories: {
+        include: { category: { select: { id: true, name: true, sdg_number: true } } }
+      },
+      parent: { select: { id: true, title: true } }
     }
   });
 
-  return post;
+  return thread;
 };
 
-const listForumThreads = async (forumId, { page = 1, pageSize = 10 }) => {
+const listThreads = async ({
+  page = 1,
+  pageSize = 10,
+  tags = [],
+  categoryIds = [],
+  search
+}) => {
+  const skip = (page - 1) * pageSize;
+
+  const where = {
+    status: 'ACTIVE',
+    parent_thread_id: null,
+    ...(search
+      ? {
+          title: {
+            contains: search,
+            mode: 'insensitive'
+          }
+        }
+      : {}),
+    ...(tags.length
+      ? {
+          tags: {
+            array_contains: tags
+          }
+        }
+      : {}),
+    ...(categoryIds.length
+      ? {
+          categories: {
+            some: {
+              category_id: { in: categoryIds }
+            }
+          }
+        }
+      : {})
+  };
+
+  const [threads, total] = await Promise.all([
+    prisma.thread.findMany({
+      where,
+      skip,
+      take: pageSize,
+      orderBy: { created_at: 'desc' },
+      include: {
+        author: { select: { id: true, username: true, name: true } },
+        categories: {
+          include: { category: { select: { id: true, name: true, sdg_number: true } } }
+        },
+        _count: {
+          select: {
+            interactions: true,
+            replies: true
+          }
+        }
+      }
+    }),
+    prisma.thread.count({ where })
+  ]);
+
+  return {
+    data: threads,
+    pagination: {
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize))
+    }
+  };
+};
+
+const getThreadById = async (threadId) => {
+  const thread = await prisma.thread.findFirst({
+    where: { id: threadId, status: 'ACTIVE' },
+    include: {
+      author: { select: { id: true, username: true, name: true } },
+      parent: {
+        select: {
+          id: true,
+          title: true,
+          author: { select: { id: true, username: true, name: true } }
+        }
+      },
+      categories: {
+        include: { category: { select: { id: true, name: true, sdg_number: true } } }
+      },
+      replies: {
+        where: { status: 'ACTIVE' },
+        orderBy: { created_at: 'asc' },
+        include: {
+          author: { select: { id: true, username: true, name: true } },
+          _count: { select: { interactions: true } }
+        }
+      },
+      _count: {
+        select: {
+          interactions: true,
+          replies: true
+        }
+      }
+    }
+  });
+
+  if (!thread) {
+    throw new ApiError(404, 'Thread not found');
+  }
+
+  return thread;
+};
+
+const listThreadReplies = async (threadId, { page = 1, pageSize = 10 }) => {
+  await ensureActiveThread(threadId);
+
+  const skip = (page - 1) * pageSize;
+
+  const [replies, total] = await Promise.all([
+    prisma.thread.findMany({
+      where: {
+        parent_thread_id: threadId,
+        status: 'ACTIVE'
+      },
+      skip,
+      take: pageSize,
+      orderBy: { created_at: 'asc' },
+      include: {
+        author: { select: { id: true, username: true, name: true } },
+        _count: { select: { interactions: true } }
+      }
+    }),
+    prisma.thread.count({
+      where: {
+        parent_thread_id: threadId,
+        status: 'ACTIVE'
+      }
+    })
+  ]);
+
+  return {
+    data: replies,
+    pagination: {
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize))
+    }
+  };
+};
+
+const likeThread = async (threadId, userId) => {
+  await ensureActiveThread(threadId);
+
+  const interaction = await prisma.interaction.upsert({
+    where: {
+      thread_id_user_id_type: {
+        thread_id: threadId,
+        user_id: userId,
+        type: 'LIKE'
+      }
+    },
+    update: {},
+    create: {
+      thread_id: threadId,
+      user_id: userId,
+      type: 'LIKE'
+    }
+  });
+
+  return interaction;
+};
+
+const unlikeThread = async (threadId, userId) => {
+  try {
+    await prisma.interaction.delete({
+      where: {
+        thread_id_user_id_type: {
+          thread_id: threadId,
+          user_id: userId,
+          type: 'LIKE'
+        }
+      }
+    });
+  } catch (error) {
+    throw new ApiError(404, 'Like interaction not found');
+  }
+};
+
+const repostThread = async (threadId, userId) => {
+  await ensureActiveThread(threadId);
+
+  const interaction = await prisma.interaction.upsert({
+    where: {
+      thread_id_user_id_type: {
+        thread_id: threadId,
+        user_id: userId,
+        type: 'REPOST'
+      }
+    },
+    update: {},
+    create: {
+      thread_id: threadId,
+      user_id: userId,
+      type: 'REPOST'
+    }
+  });
+
+  return interaction;
+};
+
+const unrepostThread = async (threadId, userId) => {
+  try {
+    await prisma.interaction.delete({
+      where: {
+        thread_id_user_id_type: {
+          thread_id: threadId,
+          user_id: userId,
+          type: 'REPOST'
+        }
+      }
+    });
+  } catch (error) {
+    throw new ApiError(404, 'Repost interaction not found');
+  }
+};
+
+const createReport = async (threadId, reporterId, { reasonCode, message }) => {
+  await ensureActiveThread(threadId);
+
+  if (!reasonCode || !reasonCode.trim()) {
+    throw new ApiError(400, 'reasonCode is required');
+  }
+
+  const report = await prisma.report.create({
+    data: {
+      thread_id: threadId,
+      reporter_id: reporterId,
+      reason_code: reasonCode.trim(),
+      message: message ? message.trim() : null
+    }
+  });
+
+  return report;
+};
+
+const listUserThreads = async (userId, { page = 1, pageSize = 10 }) => {
   const skip = (page - 1) * pageSize;
 
   const [threads, total] = await Promise.all([
-    prisma.post.findMany({
+    prisma.thread.findMany({
       where: {
-        forum_id: forumId,
-        status: 'ACTIVE'
+        author_id: userId,
+        status: 'ACTIVE',
+        parent_thread_id: null
       },
       skip,
       take: pageSize,
       orderBy: { created_at: 'desc' },
       include: {
-        author: { select: { id: true, username: true } },
-        _count: { select: { comments: true, interactions: true } }
+        categories: {
+          include: { category: { select: { id: true, name: true, sdg_number: true } } }
+        },
+        _count: { select: { interactions: true, replies: true } }
       }
     }),
-    prisma.post.count({
+    prisma.thread.count({
       where: {
-        forum_id: forumId,
-        status: 'ACTIVE'
+        author_id: userId,
+        status: 'ACTIVE',
+        parent_thread_id: null
       }
     })
   ]);
@@ -53,82 +419,79 @@ const listForumThreads = async (forumId, { page = 1, pageSize = 10 }) => {
       page,
       pageSize,
       total,
-      totalPages: Math.ceil(total / pageSize) || 1
+      totalPages: Math.max(1, Math.ceil(total / pageSize))
     }
   };
 };
 
-const getThreadById = async (threadId, { includeRemoved = false } = {}) => {
-  const thread = await prisma.post.findFirst({
-    where: {
-      id: threadId,
-      ...(includeRemoved ? {} : { status: 'ACTIVE' })
-    },
-    include: {
-      author: { select: { id: true, username: true } },
-      forum: {
-        include: {
-          owner: { select: { id: true, username: true } }
+const listUserReposts = async (userId, { page = 1, pageSize = 10 }) => {
+  const skip = (page - 1) * pageSize;
+
+  const [interactions, total] = await Promise.all([
+    prisma.interaction.findMany({
+      where: {
+        user_id: userId,
+        type: 'REPOST',
+        thread: {
+          status: 'ACTIVE'
         }
       },
-      comments: {
-        where: { status: 'ACTIVE' },
-        orderBy: { created_at: 'asc' },
-        include: {
-          user: { select: { id: true, username: true } }
+      skip,
+      take: pageSize,
+      orderBy: { created_at: 'desc' },
+      include: {
+        thread: {
+          include: {
+            author: { select: { id: true, username: true, name: true } },
+            categories: {
+              include: {
+                category: { select: { id: true, name: true, sdg_number: true } }
+              }
+            },
+            _count: { select: { interactions: true, replies: true } }
+          }
         }
-      },
-      _count: {
-        select: { interactions: true, comments: true }
       }
+    }),
+    prisma.interaction.count({
+      where: {
+        user_id: userId,
+        type: 'REPOST',
+        thread: {
+          status: 'ACTIVE'
+        }
+      }
+    })
+  ]);
+
+  const reposts = interactions.map((interaction) => ({
+    id: interaction.id,
+    reposted_at: interaction.created_at,
+    thread: interaction.thread
+  }));
+
+  return {
+    data: reposts,
+    pagination: {
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize))
     }
-  });
-
-  if (!thread) {
-    throw new ApiError(404, 'Thread not found');
-  }
-
-  return thread;
-};
-
-const getThreadForModeration = async (threadId) => {
-  const thread = await prisma.post.findUnique({
-    where: { id: threadId },
-    include: {
-      forum: true,
-      author: { select: { id: true, username: true } }
-    }
-  });
-
-  if (!thread) {
-    throw new ApiError(404, 'Thread not found');
-  }
-
-  return thread;
-};
-
-const updateThreadStatus = async (threadId, status) => {
-  if (!['ACTIVE', 'REMOVED'].includes(status)) {
-    throw new ApiError(400, 'Invalid thread status');
-  }
-
-  const thread = await prisma.post.update({
-    where: { id: threadId },
-    data: { status },
-    include: {
-      forum: { select: { id: true, slug: true, owner_id: true } },
-      author: { select: { id: true, username: true } }
-    }
-  });
-
-  return thread;
+  };
 };
 
 module.exports = {
+  sanitizeTags,
   createThread,
-  listForumThreads,
+  listThreads,
   getThreadById,
-  getThreadForModeration,
-  updateThreadStatus
+  listThreadReplies,
+  likeThread,
+  unlikeThread,
+  repostThread,
+  unrepostThread,
+  createReport,
+  listUserThreads,
+  listUserReposts
 };
-

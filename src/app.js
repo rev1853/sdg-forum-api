@@ -5,10 +5,9 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./docs/swagger');
 const ApiError = require('./utils/ApiError');
 const authRoutes = require('./routes/auth.routes');
-const publicRoutes = require('./routes/public.routes');
-const forumsRoutes = require('./routes/forums.routes');
 const threadsRoutes = require('./routes/threads.routes');
-const commentsRoutes = require('./routes/comments.routes');
+const categoriesRoutes = require('./routes/categories.routes');
+const usersRoutes = require('./routes/users.routes');
 
 const app = express();
 
@@ -35,10 +34,9 @@ app.get('/docs.json', (_req, res) => {
 });
 
 app.use('/auth', authRoutes);
-app.use('/', publicRoutes);
-app.use('/forums', forumsRoutes);
 app.use('/', threadsRoutes);
-app.use('/', commentsRoutes);
+app.use('/', categoriesRoutes);
+app.use('/users', usersRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found' });

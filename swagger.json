@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "SDG Forum API",
+    "title": "SDG Threads API",
     "version": "1.0.0",
-    "description": "Social media forum API documentation"
+    "description": "API documentation for the SDG-themed discussion platform"
   },
   "components": {
     "securitySchemes": {
@@ -159,346 +159,28 @@
         }
       }
     },
-    "/threads/{threadId}/comments": {
-      "post": {
-        "tags": [
-          "Comments"
-        ],
-        "summary": "Create a comment on a thread",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "threadId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "body"
-                ],
-                "properties": {
-                  "body": {
-                    "type": "string"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Comment created"
-          }
-        }
-      }
-    },
-    "/comments/{commentId}/status": {
-      "patch": {
-        "tags": [
-          "Moderation"
-        ],
-        "summary": "Update comment status",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "commentId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "ACTIVE",
-                      "REMOVED"
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Comment status updated"
-          }
-        }
-      }
-    },
-    "/forums": {
-      "post": {
-        "tags": [
-          "Forums"
-        ],
-        "summary": "Create a new forum",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "title"
-                ],
-                "properties": {
-                  "title": {
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "categoryIds": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Forum created"
-          }
-        }
-      },
+    "/categories": {
       "get": {
         "tags": [
-          "Forums"
+          "Categories"
         ],
-        "summary": "List forums",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "page",
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "pageSize",
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
+        "summary": "List available SDG categories",
         "responses": {
           "200": {
-            "description": "Forums list"
+            "description": "Categories list"
           }
         }
       }
     },
-    "/forums/{slug}": {
-      "delete": {
-        "tags": [
-          "Forums"
-        ],
-        "summary": "Soft delete a forum",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "slug",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Forum removed"
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "Forums"
-        ],
-        "summary": "Retrieve forum detail",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "slug",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Forum detail"
-          }
-        }
-      }
-    },
-    "/forums/{slug}/follow": {
-      "post": {
-        "tags": [
-          "Forums"
-        ],
-        "summary": "Follow a forum",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "slug",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Followed"
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Forums"
-        ],
-        "summary": "Unfollow a forum",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "slug",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Unfollowed"
-          }
-        }
-      }
-    },
-    "/forums/{slug}/moderators/{userId}": {
-      "patch": {
-        "tags": [
-          "Forums"
-        ],
-        "summary": "Promote or demote a follower to moderator",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "slug",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "userId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "isModerator"
-                ],
-                "properties": {
-                  "isModerator": {
-                    "type": "boolean"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Moderator status updated"
-          }
-        }
-      }
-    },
-    "/forums/{slug}/threads": {
+    "/threads": {
       "post": {
         "tags": [
           "Threads"
         ],
-        "summary": "Create a thread in a forum",
+        "summary": "Create a new top-level thread",
         "security": [
           {
             "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "slug",
-            "schema": {
-              "type": "string"
-            },
-            "required": true
           }
         ],
         "requestBody": {
@@ -508,13 +190,30 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "body"
+                  "title",
+                  "body",
+                  "categoryIds"
                 ],
                 "properties": {
+                  "title": {
+                    "type": "string"
+                  },
                   "body": {
                     "type": "string"
                   },
-                  "media": {
+                  "categoryIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "image": {
                     "type": "string",
                     "format": "binary"
                   }
@@ -533,11 +232,127 @@
         "tags": [
           "Threads"
         ],
-        "summary": "List threads for a forum",
+        "summary": "List threads",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tags",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma separated list of tags"
+          },
+          {
+            "in": "query",
+            "name": "categories",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma separated list of category IDs"
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Search threads by title"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Threads list"
+          }
+        }
+      }
+    },
+    "/threads/{threadId}/replies": {
+      "post": {
+        "tags": [
+          "Threads"
+        ],
+        "summary": "Reply to a thread",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "path",
-            "name": "slug",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "body"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "body": {
+                    "type": "string"
+                  },
+                  "categoryIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "image": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Reply created"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Threads"
+        ],
+        "summary": "List replies for a thread",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "threadId",
             "required": true,
             "schema": {
               "type": "string"
@@ -560,7 +375,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Threads list"
+            "description": "Replies list"
           }
         }
       }
@@ -588,12 +403,120 @@
         }
       }
     },
-    "/threads/{threadId}/status": {
-      "patch": {
+    "/threads/{threadId}/like": {
+      "post": {
+        "tags": [
+          "Interactions"
+        ],
+        "summary": "Like a thread",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Thread liked"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Interactions"
+        ],
+        "summary": "Remove like from a thread",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Like removed"
+          }
+        }
+      }
+    },
+    "/threads/{threadId}/repost": {
+      "post": {
+        "tags": [
+          "Interactions"
+        ],
+        "summary": "Repost a thread",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Thread reposted"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Interactions"
+        ],
+        "summary": "Remove repost from a thread",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Repost removed"
+          }
+        }
+      }
+    },
+    "/threads/{threadId}/report": {
+      "post": {
         "tags": [
           "Moderation"
         ],
-        "summary": "Update thread status",
+        "summary": "Report a thread",
         "security": [
           {
             "bearerAuth": []
@@ -610,17 +533,20 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": [
+                  "reasonCode"
+                ],
                 "properties": {
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "ACTIVE",
-                      "REMOVED"
-                    ]
+                  "reasonCode": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
                   }
                 }
               }
@@ -628,8 +554,82 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "Report submitted"
+          }
+        }
+      }
+    },
+    "/users/{userId}/threads": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "List threads created by a user",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
           "200": {
-            "description": "Status updated"
+            "description": "User threads list"
+          }
+        }
+      }
+    },
+    "/users/{userId}/reposts": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "List threads reposted by a user",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User reposts list"
           }
         }
       }

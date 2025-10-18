@@ -13,17 +13,7 @@ datasource db {
 // ---------------------------------------------------------
 // Enums
 // ---------------------------------------------------------
-enum PostStatus {
-    ACTIVE
-    REMOVED
-}
-
-enum CommentStatus {
-    ACTIVE
-    REMOVED
-}
-
-enum ForumStatus {
+enum ThreadStatus {
     ACTIVE
     REMOVED
 }
@@ -31,11 +21,6 @@ enum ForumStatus {
 enum InteractionType {
     LIKE
     REPOST
-}
-
-enum ReportTargetType {
-    POST
-    COMMENT
 }
 
 // Optional: if you want to standardize report reasons, switch reasonCode to this
@@ -60,44 +45,14 @@ model User {
     profile_picture String? // URL
     created_at      DateTime @default(now())
 
-    // --- Google OAuth (optional) ---
-    google_id      String? @unique
-    google_email   String? @unique
-    google_picture String?
-
     // relations
-    forumsOwned  Forum[]         @relation("ForumOwner")
-    forumFollows ForumFollower[]
-    posts        Post[]          @relation("PostAuthor")
-    comments     Comment[]
-    interactions Interaction[]
-    reportsFiled Report[]        @relation("ReportReporter")
-    chatMessages ChatMessage[]
+    threads       Thread[]        @relation("ThreadAuthor")
+    interactions  Interaction[]
+    reportsFiled  Report[]        @relation("ReportReporter")
     resetTokens   PasswordResetToken[]
 
     @@index([username])
     @@index([created_at])
-}
-
-model Forum {
-    id          String   @id @default(cuid())
-    slug        String   @unique
-    title       String
-    description String?
-    owner_id    String
-    created_at  DateTime @default(now())
-    status      ForumStatus @default(ACTIVE)
-
-    // relations
-    owner      User            @relation("ForumOwner", fields: [owner_id], references: [id], onDelete: Cascade)
-    posts      Post[]
-    categories ForumCategory[]
-    followers  ForumFollower[]
-    chats      ChatMessage[]
-
-    @@index([owner_id])
-    @@index([created_at])
-    @@index([status])
 }
 
 model Category {
@@ -106,127 +61,79 @@ model Category {
     sdg_number Int // (1..17 ideally; enforce in app or with DB CHECK if needed)
     created_at DateTime @default(now())
 
-    forums ForumCategory[]
+    threads ThreadCategory[]
 
     @@index([sdg_number])
     @@index([created_at])
 }
 
-model ForumCategory {
-    // join table: forums in categories
-    forum_id    String
+model Thread {
+    id         String       @id @default(cuid())
+    author_id  String
+    parent_thread_id String?
+    title      String
+    body       String
+    image      String?
+    tags       Json         @default("[]")
+    status     ThreadStatus @default(ACTIVE)
+    created_at DateTime     @default(now())
+    updated_at DateTime     @updatedAt
+
+    author       User            @relation("ThreadAuthor", fields: [author_id], references: [id], onDelete: Cascade)
+    parent       Thread?         @relation("ThreadReplies", fields: [parent_thread_id], references: [id], onDelete: Cascade)
+    replies      Thread[]        @relation("ThreadReplies")
+    categories   ThreadCategory[]
+    interactions Interaction[]
+    reports      Report[]        @relation("ThreadReports")
+
+    @@index([author_id])
+    @@index([parent_thread_id])
+    @@index([status])
+    @@index([created_at])
+}
+
+model ThreadCategory {
+    thread_id   String
     category_id String
 
-    forum    Forum    @relation(fields: [forum_id], references: [id], onDelete: Cascade)
+    thread   Thread   @relation(fields: [thread_id], references: [id], onDelete: Cascade)
     category Category @relation(fields: [category_id], references: [id], onDelete: Cascade)
 
-    @@id([forum_id, category_id])
+    @@id([thread_id, category_id])
     @@index([category_id])
-}
-
-model ForumFollower {
-    // followers of forum (+ moderator flag)
-    user_id      String
-    forum_id     String
-    is_moderator Boolean  @default(false)
-    followed_at  DateTime @default(now())
-
-    user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
-    forum Forum @relation(fields: [forum_id], references: [id], onDelete: Cascade)
-
-    @@id([user_id, forum_id])
-    @@index([forum_id])
-    @@index([followed_at])
-}
-
-model Post {
-    id         String     @id @default(cuid())
-    forum_id   String
-    author_id  String
-    body       String
-    media      String? // URL to image
-    status     PostStatus @default(ACTIVE)
-    created_at DateTime   @default(now())
-    updated_at DateTime   @updatedAt
-
-    forum        Forum         @relation(fields: [forum_id], references: [id], onDelete: Cascade)
-    author       User          @relation("PostAuthor", fields: [author_id], references: [id], onDelete: Cascade)
-    comments     Comment[]
-    interactions Interaction[]
-    reports      Report[] // via target_type=POST, target_id = this id
-
-    @@index([forum_id, created_at])
-    @@index([author_id])
-    @@index([status])
-}
-
-model Comment {
-    id         String        @id @default(cuid())
-    post_id    String
-    user_id    String
-    body       String
-    status     CommentStatus @default(ACTIVE)
-    created_at DateTime      @default(now())
-
-    post    Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
-    user    User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-    reports Report[] // via target_type=COMMENT, target_id = this id
-
-    @@index([post_id, created_at])
-    @@index([user_id])
-    @@index([status])
 }
 
 model Interaction {
     id         String          @id @default(cuid())
-    post_id    String
+    thread_id  String
     user_id    String
     type       InteractionType
     created_at DateTime        @default(now())
 
-    post Post @relation(fields: [post_id], references: [id], onDelete: Cascade)
-    user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+    thread Thread @relation(fields: [thread_id], references: [id], onDelete: Cascade)
+    user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-    // One interaction type per user per post (e.g., one LIKE)
-    @@unique([post_id, user_id, type])
+    // One interaction type per user per thread (e.g., one LIKE)
+    @@unique([thread_id, user_id, type])
     @@index([user_id])
     @@index([type])
     @@index([created_at])
 }
 
 model Report {
-    id          String           @id @default(cuid())
-    target_type ReportTargetType
-    target_id   String // references Post.id or Comment.id depending on target_type
+    id          String   @id @default(cuid())
+    thread_id   String
     reporter_id String
     reason_code String // or switch to enum ReasonCode
     message     String?
-    created_at  DateTime         @default(now())
+    created_at  DateTime @default(now())
 
-    reporter User @relation("ReportReporter", fields: [reporter_id], references: [id], onDelete: Cascade)
+    reporter User   @relation("ReportReporter", fields: [reporter_id], references: [id], onDelete: Cascade)
+    thread   Thread @relation("ThreadReports", fields: [thread_id], references: [id], onDelete: Cascade)
 
-    // Optional: helper relations (soft) for convenience; not enforced when target_type mismatches.
-    postTarget    Post?    @relation(fields: [target_id], references: [id], onDelete: Cascade, map: "Report_PostTarget")
-    commentTarget Comment? @relation(fields: [target_id], references: [id], onDelete: Cascade, map: "Report_CommentTarget")
-
-    @@index([target_type, target_id])
+    @@index([thread_id])
     @@index([reporter_id])
     @@index([created_at])
-}
-
-model ChatMessage {
-    id         String   @id @default(cuid())
-    forum_id   String
-    user_id    String
-    body       String
-    media      String? // URL
-    created_at DateTime @default(now())
-
-    forum Forum @relation(fields: [forum_id], references: [id], onDelete: Cascade)
-    user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-    @@index([forum_id, created_at])
-    @@index([user_id])
 }
 
 model PasswordResetToken {

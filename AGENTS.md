@@ -8,8 +8,3 @@
 - Use soft delete method in the database
 - You can modify the schema and migrate it using prisma
 - Always use pagination for list-style response
-
-# Features
-- This api is to manage a social media app
-- The features is login, register, create forum, create thread, see thread list, thread detail, follow forum, and comment
-- There are owner-scoped features like take down the post, comment, make follower as moderator, owner can remove their forum
