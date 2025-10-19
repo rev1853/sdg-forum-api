@@ -172,6 +172,32 @@
         }
       }
     },
+    "/dashboard/stats/threads-weekly": {
+      "get": {
+        "tags": [
+          "Dashboard"
+        ],
+        "summary": "Get thread metrics for the past 7 days",
+        "responses": {
+          "200": {
+            "description": "Weekly thread statistics"
+          }
+        }
+      }
+    },
+    "/dashboard/top-threads": {
+      "get": {
+        "tags": [
+          "Dashboard"
+        ],
+        "summary": "Top 10 threads with the highest interaction in the past 7 days",
+        "responses": {
+          "200": {
+            "description": "Ranked list of threads"
+          }
+        }
+      }
+    },
     "/threads": {
       "post": {
         "tags": [
@@ -556,6 +582,29 @@
         "responses": {
           "201": {
             "description": "Report submitted"
+          }
+        }
+      }
+    },
+    "/users/{userId}": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Get user details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User detail"
           }
         }
       }

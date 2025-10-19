@@ -1,8 +1,28 @@
 const express = require('express');
+const getUserController = require('../controllers/users/getUserController');
 const listUserThreadsController = require('../controllers/users/listUserThreadsController');
 const listUserRepostsController = require('../controllers/users/listUserRepostsController');
 
 const router = express.Router();
+
+/**
+ * @openapi
+ * /users/{userId}:
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Get user details
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User detail
+ */
+router.get('/:userId', getUserController);
 
 /**
  * @openapi

@@ -44,7 +44,7 @@ pipeline {
 
         stage('Prisma Seed') {
             steps {
-                sh 'docker compose run --rm api npx prisma db seed'
+                sh 'docker compose run --rm api npm run prisma:seed'
             }
         }
     }

@@ -72,7 +72,7 @@ model Thread {
     author_id        String
     parent_thread_id String?
     title            String
-    body             String
+    body             String       @db.Text
     image            String?
     tags             Json         @default("[]")
     status           ThreadStatus @default(ACTIVE)

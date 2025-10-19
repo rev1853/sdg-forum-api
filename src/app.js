@@ -7,6 +7,7 @@ const ApiError = require('./utils/ApiError');
 const authRoutes = require('./routes/auth.routes');
 const threadsRoutes = require('./routes/threads.routes');
 const categoriesRoutes = require('./routes/categories.routes');
+const dashboardRoutes = require('./routes/dashboard.routes');
 const usersRoutes = require('./routes/users.routes');
 
 const app = express();
@@ -36,6 +37,7 @@ app.get('/docs.json', (_req, res) => {
 app.use('/auth', authRoutes);
 app.use('/threads', threadsRoutes);
 app.use('/categories', categoriesRoutes);
+app.use('/dashboard', dashboardRoutes);
 app.use('/users', usersRoutes);
 
 app.use((req, res) => {
