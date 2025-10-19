@@ -41,4 +41,8 @@
     "prisma": "^5.16.1",
     "supertest": "^6.3.4"
   }
+  ,
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  }
 }
