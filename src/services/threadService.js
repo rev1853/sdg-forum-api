@@ -27,6 +27,70 @@ const sanitizeTags = (tags) => {
   throw new ApiError(400, 'Tags must be a string or an array of strings');
 };
 
+const normalizeCategories = (items = []) =>
+  items
+    .map((item) => item?.category || item)
+    .filter(Boolean);
+
+const summarizeInteractions = async (threadIds) => {
+  if (!threadIds.length) {
+    return {};
+  }
+
+  const grouped = await prisma.interaction.groupBy({
+    by: ['thread_id', 'type'],
+    where: {
+      thread_id: { in: threadIds }
+    },
+    _count: {
+      _all: true
+    }
+  });
+
+  const map = {};
+
+  for (const id of threadIds) {
+    map[id] = { likes: 0, reposts: 0 };
+  }
+
+  grouped.forEach(({ thread_id: id, type, _count }) => {
+    if (!map[id]) {
+      map[id] = { likes: 0, reposts: 0 };
+    }
+
+    if (type === 'LIKE') {
+      map[id].likes = _count._all;
+    } else if (type === 'REPOST') {
+      map[id].reposts = _count._all;
+    }
+  });
+
+  return map;
+};
+
+const applyMetrics = (thread, metrics = { likes: 0, reposts: 0 }) => {
+  const { _count = {}, categories = [], ...rest } = thread;
+
+  return {
+    ...rest,
+    categories: normalizeCategories(categories),
+    counts: {
+      likes: metrics.likes ?? 0,
+      reposts: metrics.reposts ?? 0,
+      replies: _count.replies ?? 0
+    }
+  };
+};
+
+const applyMetricsToCollection = async (threads) => {
+  if (!threads.length) {
+    return [];
+  }
+
+  const metricsMap = await summarizeInteractions(threads.map((thread) => thread.id));
+  return threads.map((thread) => applyMetrics(thread, metricsMap[thread.id]));
+};
+
 const validateCategorySelection = async (categoryIds) => {
   if (!Array.isArray(categoryIds)) {
     throw new ApiError(400, 'categoryIds must be an array');
@@ -89,12 +153,11 @@ const createThread = async ({
     parent_thread_id: parentThreadId || null
   };
 
-  let categoryConnect = undefined;
+  let categoryConnect;
 
   if (parentThreadId) {
     await ensureActiveThread(parentThreadId);
 
-    // Replies can optionally specify categories; otherwise inherit from parent
     if (Array.isArray(categoryIds) && categoryIds.length > 0) {
       const validIds = await validateCategorySelection(categoryIds);
       categoryConnect = {
@@ -134,11 +197,16 @@ const createThread = async ({
       categories: {
         include: { category: { select: { id: true, name: true, sdg_number: true } } }
       },
-      parent: { select: { id: true, title: true } }
+      parent: {
+        select: { id: true, title: true }
+      },
+      _count: {
+        select: { replies: true }
+      }
     }
   });
 
-  return thread;
+  return applyMetrics(thread);
 };
 
 const listThreads = async ({
@@ -192,7 +260,6 @@ const listThreads = async ({
         },
         _count: {
           select: {
-            interactions: true,
             replies: true
           }
         }
@@ -201,8 +268,10 @@ const listThreads = async ({
     prisma.thread.count({ where })
   ]);
 
+  const formatted = await applyMetricsToCollection(threads);
+
   return {
-    data: threads,
+    data: formatted,
     pagination: {
       page,
       pageSize,
@@ -232,12 +301,14 @@ const getThreadById = async (threadId) => {
         orderBy: { created_at: 'asc' },
         include: {
           author: { select: { id: true, username: true, name: true } },
-          _count: { select: { interactions: true } }
+          categories: {
+            include: { category: { select: { id: true, name: true, sdg_number: true } } }
+          },
+          _count: { select: { replies: true } }
         }
       },
       _count: {
         select: {
-          interactions: true,
           replies: true
         }
       }
@@ -248,7 +319,17 @@ const getThreadById = async (threadId) => {
     throw new ApiError(404, 'Thread not found');
   }
 
-  return thread;
+  const replyIds = thread.replies.map((reply) => reply.id);
+  const metricsMap = await summarizeInteractions([thread.id, ...replyIds]);
+
+  const formattedReplies = thread.replies.map((reply) =>
+    applyMetrics(reply, metricsMap[reply.id])
+  );
+
+  const formattedThread = applyMetrics(thread, metricsMap[thread.id]);
+  formattedThread.replies = formattedReplies;
+
+  return formattedThread;
 };
 
 const listThreadReplies = async (threadId, { page = 1, pageSize = 10 }) => {
@@ -267,7 +348,10 @@ const listThreadReplies = async (threadId, { page = 1, pageSize = 10 }) => {
       orderBy: { created_at: 'asc' },
       include: {
         author: { select: { id: true, username: true, name: true } },
-        _count: { select: { interactions: true } }
+        categories: {
+          include: { category: { select: { id: true, name: true, sdg_number: true } } }
+        },
+        _count: { select: { replies: true } }
       }
     }),
     prisma.thread.count({
@@ -278,8 +362,10 @@ const listThreadReplies = async (threadId, { page = 1, pageSize = 10 }) => {
     })
   ]);
 
+  const formattedReplies = await applyMetricsToCollection(replies);
+
   return {
-    data: replies,
+    data: formattedReplies,
     pagination: {
       page,
       pageSize,
@@ -401,7 +487,7 @@ const listUserThreads = async (userId, { page = 1, pageSize = 10 }) => {
         categories: {
           include: { category: { select: { id: true, name: true, sdg_number: true } } }
         },
-        _count: { select: { interactions: true, replies: true } }
+        _count: { select: { replies: true } }
       }
     }),
     prisma.thread.count({
@@ -413,8 +499,10 @@ const listUserThreads = async (userId, { page = 1, pageSize = 10 }) => {
     })
   ]);
 
+  const formattedThreads = await applyMetricsToCollection(threads);
+
   return {
-    data: threads,
+    data: formattedThreads,
     pagination: {
       page,
       pageSize,
@@ -448,7 +536,7 @@ const listUserReposts = async (userId, { page = 1, pageSize = 10 }) => {
                 category: { select: { id: true, name: true, sdg_number: true } }
               }
             },
-            _count: { select: { interactions: true, replies: true } }
+            _count: { select: { replies: true } }
           }
         }
       }
@@ -464,10 +552,14 @@ const listUserReposts = async (userId, { page = 1, pageSize = 10 }) => {
     })
   ]);
 
+  const threadMetrics = await summarizeInteractions(
+    interactions.map((interaction) => interaction.thread.id)
+  );
+
   const reposts = interactions.map((interaction) => ({
     id: interaction.id,
     reposted_at: interaction.created_at,
-    thread: interaction.thread
+    thread: applyMetrics(interaction.thread, threadMetrics[interaction.thread.id])
   }));
 
   return {
@@ -495,3 +587,4 @@ module.exports = {
   listUserThreads,
   listUserReposts
 };
+

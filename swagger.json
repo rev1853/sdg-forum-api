@@ -607,6 +607,61 @@
             "description": "User detail"
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Update user profile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "username": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "removeProfilePicture": {
+                    "type": "boolean"
+                  },
+                  "profilePicture": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "New profile picture image"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated user profile"
+          }
+        }
       }
     },
     "/users/{userId}/threads": {

@@ -1,5 +1,10 @@
 const prisma = require('../prisma');
 
+const normalizeCategories = (items = []) =>
+  items
+    .map((item) => item?.category || item)
+    .filter(Boolean);
+
 const getStartOfWindow = () => {
   const now = new Date();
   const window = new Date(now);
@@ -132,7 +137,10 @@ const getTopThreadsByInteraction = async () => {
         interactionCount: item._count._all,
         likes: counts.likes,
         reposts: counts.reposts,
-        thread
+        thread: {
+          ...thread,
+          categories: normalizeCategories(thread.categories)
+        }
       };
     })
     .filter(Boolean);
@@ -147,4 +155,3 @@ module.exports = {
   getWeeklyThreadStats,
   getTopThreadsByInteraction
 };
-
