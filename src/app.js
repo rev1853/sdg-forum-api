@@ -34,8 +34,8 @@ app.get('/docs.json', (_req, res) => {
 });
 
 app.use('/auth', authRoutes);
-app.use('/', threadsRoutes);
-app.use('/', categoriesRoutes);
+app.use('/threads', threadsRoutes);
+app.use('/categories', categoriesRoutes);
 app.use('/users', usersRoutes);
 
 app.use((req, res) => {

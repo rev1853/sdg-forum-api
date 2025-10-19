@@ -14,6 +14,6 @@ const router = express.Router();
  *       200:
  *         description: Categories list
  */
-router.get('/categories', listCategoriesController);
+router.get('/', listCategoriesController);
 
 module.exports = router;
