@@ -1,6 +1,7 @@
 const express = require('express');
 const loginController = require('../controllers/auth/loginController');
 const registerController = require('../controllers/auth/registerController');
+const googleAuthController = require('../controllers/auth/googleAuthController');
 const requestPasswordResetController = require('../controllers/auth/requestPasswordResetController');
 const resetPasswordController = require('../controllers/auth/resetPasswordController');
 
@@ -64,6 +65,31 @@ router.post('/register', registerController);
  *         description: User authenticated successfully
  */
 router.post('/login', loginController);
+
+/**
+ * @openapi
+ * /auth/google:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Authenticate with Google ID token
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - idToken
+ *             properties:
+ *               idToken:
+ *                 type: string
+ *                 description: Google ID token obtained from the frontend
+ *     responses:
+ *       200:
+ *         description: Authenticated via Google
+ */
+router.post('/google', googleAuthController);
 
 /**
  * @openapi

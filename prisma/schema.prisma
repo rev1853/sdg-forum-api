@@ -45,6 +45,10 @@ model User {
     profile_picture String? // URL
     created_at      DateTime @default(now())
 
+    google_id      String? @unique
+    google_email   String? @unique
+    google_picture String?
+
     // relations
     threads      Thread[]             @relation("ThreadAuthor")
     interactions Interaction[]
