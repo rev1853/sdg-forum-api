@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const ApiError = require('../utils/ApiError');
+const { reviewThread } = require('./threadReviewService');
 
 const sanitizeTags = (tags) => {
   if (!tags) {
@@ -69,11 +70,12 @@ const summarizeInteractions = async (threadIds) => {
 };
 
 const applyMetrics = (thread, metrics = { likes: 0, reposts: 0 }) => {
-  const { _count = {}, categories = [], ...rest } = thread;
+  const { _count = {}, categories = [], review_score = 0, ...rest } = thread;
 
   return {
     ...rest,
     categories: normalizeCategories(categories),
+    review_score,
     counts: {
       likes: metrics.likes ?? 0,
       reposts: metrics.reposts ?? 0,
@@ -205,6 +207,28 @@ const createThread = async ({
       }
     }
   });
+
+  if (!parentThreadId) {
+    try {
+      const review = await reviewThread({
+        title: thread.title,
+        body: thread.body,
+        tags: sanitizedTags,
+        categories: normalizeCategories(thread.categories),
+        imagePath
+      });
+
+      if (review && review.score !== undefined) {
+        await prisma.thread.update({
+          where: { id: thread.id },
+          data: { review_score: review.score }
+        });
+        thread.review_score = review.score;
+      }
+    } catch (error) {
+      console.error('Thread review failed', error);
+    }
+  }
 
   return applyMetrics(thread);
 };
@@ -587,4 +611,3 @@ module.exports = {
   listUserThreads,
   listUserReposts
 };
-

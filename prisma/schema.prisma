@@ -50,10 +50,13 @@ model User {
     google_picture String?
 
     // relations
-    threads      Thread[]             @relation("ThreadAuthor")
-    interactions Interaction[]
-    reportsFiled Report[]             @relation("ReportReporter")
-    resetTokens  PasswordResetToken[]
+    threads              Thread[]             @relation("ThreadAuthor")
+    interactions         Interaction[]
+    reportsFiled         Report[]             @relation("ReportReporter")
+    resetTokens          PasswordResetToken[]
+    chatGroupsOwned      ChatGroup[]          @relation("ChatGroupOwner")
+    chatGroupMemberships ChatGroupMember[]
+    chatMessages         ChatMessage[]
 
     @@index([username])
     @@index([created_at])
@@ -65,7 +68,8 @@ model Category {
     sdg_number Int // (1..17 ideally; enforce in app or with DB CHECK if needed)
     created_at DateTime @default(now())
 
-    threads ThreadCategory[]
+    threads           ThreadCategory[]
+    ChatGroupCategory ChatGroupCategory[]
 
     @@index([sdg_number])
     @@index([created_at])
@@ -80,6 +84,7 @@ model Thread {
     image            String?
     tags             Json         @default("[]")
     status           ThreadStatus @default(ACTIVE)
+    review_score     Float        @default(0)
     created_at       DateTime     @default(now())
     updated_at       DateTime     @updatedAt
 
@@ -152,4 +157,68 @@ model PasswordResetToken {
 
     @@index([user_id])
     @@index([expires_at])
+}
+
+enum ChatGroupRole {
+    OWNER
+    MEMBER
+}
+
+model ChatGroup {
+    id         String   @id @default(cuid())
+    name       String
+    owner_id   String
+    created_at DateTime @default(now())
+    updated_at DateTime @updatedAt
+
+    owner      User                @relation("ChatGroupOwner", fields: [owner_id], references: [id], onDelete: Cascade)
+    categories ChatGroupCategory[]
+    members    ChatGroupMember[]
+    messages   ChatMessage[]
+
+    @@index([owner_id])
+    @@index([created_at])
+}
+
+model ChatGroupCategory {
+    group_id    String
+    category_id String
+
+    group    ChatGroup @relation(fields: [group_id], references: [id], onDelete: Cascade)
+    category Category  @relation(fields: [category_id], references: [id], onDelete: Cascade)
+
+    @@id([group_id, category_id])
+    @@index([category_id])
+}
+
+model ChatGroupMember {
+    group_id  String
+    user_id   String
+    role      ChatGroupRole @default(MEMBER)
+    joined_at DateTime      @default(now())
+    left_at   DateTime?
+
+    group ChatGroup @relation(fields: [group_id], references: [id], onDelete: Cascade)
+    user  User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+    @@id([group_id, user_id])
+    @@index([user_id])
+    @@index([role])
+}
+
+model ChatMessage {
+    id          String   @id
+    group_id    String
+    user_id     String
+    body        String
+    reply_to_id String?
+    created_at  DateTime @default(now())
+
+    group    ChatGroup     @relation(fields: [group_id], references: [id], onDelete: Cascade)
+    user     User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+    reply_to ChatMessage?  @relation("ChatMessageReplies", fields: [reply_to_id], references: [id])
+    replies  ChatMessage[] @relation("ChatMessageReplies")
+
+    @@index([group_id, created_at])
+    @@index([reply_to_id])
 }
