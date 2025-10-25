@@ -650,6 +650,32 @@
             "description": "Thread detail"
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "Threads"
+        ],
+        "summary": "Remove a thread (owner only)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Thread removed"
+          }
+        }
       }
     },
     "/threads/{threadId}/like": {

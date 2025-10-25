@@ -114,7 +114,15 @@ const getTopThreadsByInteraction = async () => {
   const threads = await prisma.thread.findMany({
     where: { id: { in: threadIds } },
     include: {
-      author: { select: { id: true, username: true, name: true } },
+      author: {
+        select: {
+          id: true,
+          username: true,
+          name: true,
+          profile_picture: true,
+          google_picture: true
+        }
+      },
       categories: {
         include: { category: { select: { id: true, name: true, sdg_number: true } } }
       }
@@ -133,13 +141,19 @@ const getTopThreadsByInteraction = async () => {
         return null;
       }
       const counts = interactionsByThread[item.thread_id] || { likes: 0, reposts: 0 };
+      const total = counts.likes + counts.reposts;
       return {
-        interactionCount: item._count._all,
+        interactionCount: total,
         likes: counts.likes,
         reposts: counts.reposts,
         thread: {
           ...thread,
-          categories: normalizeCategories(thread.categories)
+          categories: normalizeCategories(thread.categories),
+          author: {
+            ...thread.author,
+            profile_picture:
+              thread.author.profile_picture || thread.author.google_picture || null
+          }
         }
       };
     })

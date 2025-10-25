@@ -1,6 +1,9 @@
 const prisma = require('../prisma');
 const ApiError = require('../utils/ApiError');
-const { reviewThread } = require('./threadReviewService');
+const {
+  reviewNewThread,
+  checkReportThreshold
+} = require('./threadAutoModerationService');
 
 const sanitizeTags = (tags) => {
   if (!tags) {
@@ -70,11 +73,21 @@ const summarizeInteractions = async (threadIds) => {
 };
 
 const applyMetrics = (thread, metrics = { likes: 0, reposts: 0 }) => {
-  const { _count = {}, categories = [], review_score = 0, ...rest } = thread;
+  const { _count = {}, categories = [], review_score = 0, author, ...rest } = thread;
+
+  const normalizedAuthor = author
+    ? {
+        id: author.id,
+        username: author.username,
+        name: author.name,
+        profile_picture: author.profile_picture || author.google_picture || null
+      }
+    : null;
 
   return {
     ...rest,
     categories: normalizeCategories(categories),
+    author: normalizedAuthor,
     review_score,
     counts: {
       likes: metrics.likes ?? 0,
@@ -210,22 +223,19 @@ const createThread = async ({
 
   if (!parentThreadId) {
     try {
-      const review = await reviewThread({
-        title: thread.title,
-        body: thread.body,
+      const review = await reviewNewThread({
+        ...thread,
         tags: sanitizedTags,
-        categories: normalizeCategories(thread.categories),
-        imagePath
+        categories: thread.categories
       });
 
       if (review && review.score !== undefined) {
-        await prisma.thread.update({
-          where: { id: thread.id },
-          data: { review_score: review.score }
-        });
         thread.review_score = review.score;
       }
     } catch (error) {
+      if (error instanceof ApiError && error.statusCode === 400) {
+        throw error;
+      }
       console.error('Thread review failed', error);
     }
   }
@@ -278,7 +288,15 @@ const listThreads = async ({
       take: pageSize,
       orderBy: { created_at: 'desc' },
       include: {
-        author: { select: { id: true, username: true, name: true } },
+        author: {
+          select: {
+            id: true,
+            username: true,
+            name: true,
+            profile_picture: true,
+            google_picture: true
+          }
+        },
         categories: {
           include: { category: { select: { id: true, name: true, sdg_number: true } } }
         },
@@ -309,12 +327,28 @@ const getThreadById = async (threadId) => {
   const thread = await prisma.thread.findFirst({
     where: { id: threadId, status: 'ACTIVE' },
     include: {
-      author: { select: { id: true, username: true, name: true } },
+      author: {
+        select: {
+          id: true,
+          username: true,
+          name: true,
+          profile_picture: true,
+          google_picture: true
+        }
+      },
       parent: {
         select: {
           id: true,
           title: true,
-          author: { select: { id: true, username: true, name: true } }
+          author: {
+            select: {
+              id: true,
+              username: true,
+              name: true,
+              profile_picture: true,
+              google_picture: true
+            }
+          }
         }
       },
       categories: {
@@ -324,7 +358,15 @@ const getThreadById = async (threadId) => {
         where: { status: 'ACTIVE' },
         orderBy: { created_at: 'asc' },
         include: {
-          author: { select: { id: true, username: true, name: true } },
+          author: {
+            select: {
+              id: true,
+              username: true,
+              name: true,
+              profile_picture: true,
+              google_picture: true
+            }
+          },
           categories: {
             include: { category: { select: { id: true, name: true, sdg_number: true } } }
           },
@@ -352,6 +394,16 @@ const getThreadById = async (threadId) => {
 
   const formattedThread = applyMetrics(thread, metricsMap[thread.id]);
   formattedThread.replies = formattedReplies;
+  if (formattedThread.parent?.author) {
+    const parentAuthor = formattedThread.parent.author;
+    formattedThread.parent.author = {
+      id: parentAuthor.id,
+      username: parentAuthor.username,
+      name: parentAuthor.name,
+      profile_picture:
+        parentAuthor.profile_picture || parentAuthor.google_picture || null
+    };
+  }
 
   return formattedThread;
 };
@@ -371,7 +423,15 @@ const listThreadReplies = async (threadId, { page = 1, pageSize = 10 }) => {
       take: pageSize,
       orderBy: { created_at: 'asc' },
       include: {
-        author: { select: { id: true, username: true, name: true } },
+        author: {
+          select: {
+            id: true,
+            username: true,
+            name: true,
+            profile_picture: true,
+            google_picture: true
+          }
+        },
         categories: {
           include: { category: { select: { id: true, name: true, sdg_number: true } } }
         },
@@ -491,6 +551,8 @@ const createReport = async (threadId, reporterId, { reasonCode, message }) => {
     }
   });
 
+  await checkReportThreshold(threadId);
+
   return report;
 };
 
@@ -508,6 +570,15 @@ const listUserThreads = async (userId, { page = 1, pageSize = 10 }) => {
       take: pageSize,
       orderBy: { created_at: 'desc' },
       include: {
+        author: {
+          select: {
+            id: true,
+            username: true,
+            name: true,
+            profile_picture: true,
+            google_picture: true
+          }
+        },
         categories: {
           include: { category: { select: { id: true, name: true, sdg_number: true } } }
         },
@@ -554,7 +625,15 @@ const listUserReposts = async (userId, { page = 1, pageSize = 10 }) => {
       include: {
         thread: {
           include: {
-            author: { select: { id: true, username: true, name: true } },
+            author: {
+              select: {
+                id: true,
+                username: true,
+                name: true,
+                profile_picture: true,
+                google_picture: true
+              }
+            },
             categories: {
               include: {
                 category: { select: { id: true, name: true, sdg_number: true } }
@@ -597,6 +676,36 @@ const listUserReposts = async (userId, { page = 1, pageSize = 10 }) => {
   };
 };
 
+const removeThread = async (threadId, userId) => {
+  const thread = await prisma.thread.findUnique({
+    where: { id: threadId },
+    select: { id: true, author_id: true, status: true }
+  });
+
+  if (!thread) {
+    throw new ApiError(404, 'Thread not found');
+  }
+
+  if (thread.author_id !== userId) {
+    throw new ApiError(403, 'Only the thread owner can remove this thread');
+  }
+
+  if (thread.status === 'REMOVED') {
+    return;
+  }
+
+  await prisma.$transaction([
+    prisma.thread.update({
+      where: { id: threadId },
+      data: { status: 'REMOVED' }
+    }),
+    prisma.thread.updateMany({
+      where: { parent_thread_id: threadId },
+      data: { status: 'REMOVED' }
+    })
+  ]);
+};
+
 module.exports = {
   sanitizeTags,
   createThread,
@@ -609,5 +718,6 @@ module.exports = {
   unrepostThread,
   createReport,
   listUserThreads,
-  listUserReposts
+  listUserReposts,
+  removeThread
 };

@@ -1,4 +1,4 @@
-const { createThread } = require('../services/threadService');
+const { createThread, removeThread } = require('../services/threadService');
 
 jest.mock('../prisma', () => {
   const mock = {
@@ -7,9 +7,12 @@ jest.mock('../prisma', () => {
     },
     thread: {
       findFirst: jest.fn(),
+      findUnique: jest.fn(),
       create: jest.fn(),
-      update: jest.fn()
-    }
+      update: jest.fn(),
+      updateMany: jest.fn()
+    },
+    $transaction: jest.fn(async () => undefined)
   };
   return mock;
 });
@@ -103,5 +106,46 @@ describe('threadService.createThread', () => {
     expect(reviewThread).not.toHaveBeenCalled();
     expect(prisma.thread.update).not.toHaveBeenCalled();
     expect(result.review_score).toBe(0);
+  });
+});
+
+describe('threadService.removeThread', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('allows owner to remove thread', async () => {
+    prisma.thread.findUnique.mockResolvedValue({
+      id: 'thread-1',
+      author_id: 'user-1',
+      status: 'ACTIVE'
+    });
+
+    prisma.thread.update.mockResolvedValue({});
+    prisma.thread.updateMany.mockResolvedValue({});
+
+    await expect(removeThread('thread-1', 'user-1')).resolves.toBeUndefined();
+
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(prisma.thread.update).toHaveBeenCalledWith({
+      where: { id: 'thread-1' },
+      data: { status: 'REMOVED' }
+    });
+    expect(prisma.thread.updateMany).toHaveBeenCalledWith({
+      where: { parent_thread_id: 'thread-1' },
+      data: { status: 'REMOVED' }
+    });
+  });
+
+  it('prevents non-owner from removing thread', async () => {
+    prisma.thread.findUnique.mockResolvedValue({
+      id: 'thread-1',
+      author_id: 'user-1',
+      status: 'ACTIVE'
+    });
+
+    await expect(removeThread('thread-1', 'user-2')).rejects.toThrow();
+    expect(prisma.thread.update).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

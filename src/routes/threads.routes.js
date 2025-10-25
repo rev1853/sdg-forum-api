@@ -11,6 +11,7 @@ const unlikeThreadController = require('../controllers/threads/unlikeThreadContr
 const repostThreadController = require('../controllers/threads/repostThreadController');
 const unrepostThreadController = require('../controllers/threads/unrepostThreadController');
 const reportThreadController = require('../controllers/threads/reportThreadController');
+const deleteThreadController = require('../controllers/threads/deleteThreadController');
 
 const router = express.Router();
 
@@ -300,5 +301,26 @@ router.delete('/:threadId/repost', authenticate, unrepostThreadController);
  *         description: Report submitted
  */
 router.post('/:threadId/report', authenticate, reportThreadController);
+
+/**
+ * @openapi
+ * /threads/{threadId}:
+ *   delete:
+ *     tags:
+ *       - Threads
+ *     summary: Remove a thread (owner only)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: threadId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       204:
+ *         description: Thread removed
+ */
+router.delete('/:threadId', authenticate, deleteThreadController);
 
 module.exports = router;
