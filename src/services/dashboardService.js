@@ -64,11 +64,11 @@ const getTopThreadsByInteraction = async () => {
       }
     },
     _count: {
-      _all: true
+      thread_id: true
     },
     orderBy: {
       _count: {
-        _all: 'desc'
+        thread_id: 'desc'
       }
     },
     take: 10
@@ -90,7 +90,7 @@ const getTopThreadsByInteraction = async () => {
       thread_id: { in: threadIds }
     },
     _count: {
-      _all: true
+      thread_id: true
     }
   });
 
@@ -103,9 +103,9 @@ const getTopThreadsByInteraction = async () => {
     }
 
     if (item.type === 'LIKE') {
-      acc[item.thread_id].likes = item._count._all;
+      acc[item.thread_id].likes = item._count.thread_id ?? 0;
     } else if (item.type === 'REPOST') {
-      acc[item.thread_id].reposts = item._count._all;
+      acc[item.thread_id].reposts = item._count.thread_id ?? 0;
     }
 
     return acc;
@@ -141,7 +141,7 @@ const getTopThreadsByInteraction = async () => {
         return null;
       }
       const counts = interactionsByThread[item.thread_id] || { likes: 0, reposts: 0 };
-      const total = counts.likes + counts.reposts;
+      const total = item._count.thread_id ?? counts.likes + counts.reposts;
       return {
         interactionCount: total,
         likes: counts.likes,
