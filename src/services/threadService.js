@@ -258,8 +258,7 @@ const listThreads = async ({
     ...(search
       ? {
           title: {
-            contains: search,
-            mode: 'insensitive'
+            contains: search
           }
         }
       : {}),
