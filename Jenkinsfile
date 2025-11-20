@@ -36,6 +36,12 @@ pipeline {
             }
         }
 
+        stage('Prisma Reset') {
+            steps {
+                sh 'docker compose run --rm api npx prisma migrate reset --force --skip-seed'
+            }
+        }
+
         stage('Prisma Migrate') {
             steps {
                 sh 'docker compose run --rm api npx prisma migrate deploy'
