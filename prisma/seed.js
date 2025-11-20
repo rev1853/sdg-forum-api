@@ -61,6 +61,7 @@ const inferExtension = (imageUrl, contentType) => {
     if (contentType?.includes('png')) return '.png';
     if (contentType?.includes('jpeg') || contentType?.includes('jpg')) return '.jpg';
     if (contentType?.includes('webp')) return '.webp';
+    if (contentType?.includes('svg')) return '.svg';
     return '.jpg';
 };
 
