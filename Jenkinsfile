@@ -50,7 +50,18 @@ pipeline {
 
         stage('Prisma Seed') {
             steps {
-                sh 'docker compose run --rm api npm run prisma:seed'
+                script {
+                    def seedContainer = "sdg-forum-api-seed"
+                    def appContainer = "sdg-forum-api"
+
+                    try {
+                        sh "docker rm -f ${seedContainer} || true"
+                        sh "docker compose run --name ${seedContainer} api npm run prisma:seed"
+                        sh "docker cp ${seedContainer}:/app/uploads ${appContainer}:/app/"
+                    } finally {
+                        sh "docker rm -f ${seedContainer} || true"
+                    }
+                }
             }
         }
     }
