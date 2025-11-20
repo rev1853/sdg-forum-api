@@ -14,6 +14,7 @@ RUN npx prisma generate
 COPY src ./src
 COPY jest.config.js ./jest.config.js
 COPY dummies ./dummies
+COPY uploads ./uploads
 
 # Remove development-only dependencies for a slimmer final image
 RUN npm prune --omit=dev
