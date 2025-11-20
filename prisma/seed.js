@@ -1,3 +1,7 @@
+const fs = require('fs');
+const path = require('path');
+const { randomUUID } = require('crypto');
+
 const { PrismaClient } = require('@prisma/client');
 const { fakerEN } = require('@faker-js/faker');
 
@@ -5,6 +9,11 @@ const faker = fakerEN;
 const bcrypt = require('bcryptjs');
 
 const prisma = new PrismaClient();
+
+const DUMMY_DIR = path.join(__dirname, '..', 'dummies');
+const USERS_PATH = path.join(DUMMY_DIR, 'users.json');
+const THREADS_PATH = path.join(DUMMY_DIR, 'threads.json');
+const uploadsRoot = path.join(__dirname, '..', 'uploads');
 
 const sdgCategories = [
     { sdg_number: 1, name: 'No Poverty' },
@@ -36,133 +45,175 @@ async function seedCategories() {
     }
 }
 
-const generateUniqueUsername = (existing) => {
-    let username;
-    do {
-        username = faker.internet
-            .userName({
-                firstName: faker.person.firstName(),
-                lastName: faker.person.lastName()
-            })
-            .replace(/[^a-zA-Z0-9_]/g, '')
-            .toLowerCase();
-    } while (existing.has(username));
+const loadJson = (filePath) => JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 
-    existing.add(username);
-    return username;
+const ensureUploadsRoot = () => {
+    if (!fs.existsSync(uploadsRoot)) {
+        fs.mkdirSync(uploadsRoot, { recursive: true });
+    }
 };
 
-async function seedUsers(count = 10) {
-    const existingUsers = await prisma.user.findMany({ select: { username: true } });
-    const usernameSet = new Set(existingUsers.map((user) => user.username));
+const inferExtension = (imageUrl, contentType) => {
+    const extFromUrl = path.extname(new URL(imageUrl).pathname);
+    if (extFromUrl) {
+        return extFromUrl;
+    }
+
+    if (contentType?.includes('png')) return '.png';
+    if (contentType?.includes('jpeg') || contentType?.includes('jpg')) return '.jpg';
+    if (contentType?.includes('webp')) return '.webp';
+    return '.jpg';
+};
+
+const downloadImageToUploads = async (imageUrl) => {
+    ensureUploadsRoot();
+
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+        throw new Error(`Failed to download image ${imageUrl}: ${response.status}`);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    const extension = inferExtension(imageUrl, contentType);
+    const folderName = randomUUID();
+    const targetDir = path.join(uploadsRoot, folderName);
+    fs.mkdirSync(targetDir, { recursive: true });
+
+    const filename = `${randomUUID()}${extension}`;
+    const buffer = Buffer.from(await response.arrayBuffer());
+    fs.writeFileSync(path.join(targetDir, filename), buffer);
+
+    return path.join('uploads', folderName, filename);
+};
+
+async function seedUsersFromDummies() {
+    const users = loadJson(USERS_PATH);
+    const passwordHash = bcrypt.hashSync('password', 10);
 
     const created = [];
 
-    for (let i = 0; i < count; i += 1) {
-        const username = generateUniqueUsername(usernameSet);
-        const email = faker.internet.email({ firstName: username }).toLowerCase();
-        const passwordHash = bcrypt.hashSync('Password123!', 10);
-
-        const user = await prisma.user.upsert({
-            where: { email },
+    for (const user of users) {
+        const createdUser = await prisma.user.upsert({
+            where: { id: user.id },
             update: {
-                username,
-                name: faker.person.fullName(),
-                password_hash: passwordHash
+                email: user.email,
+                username: user.username,
+                name: user.name,
+                password_hash: passwordHash,
+                profile_picture: user.profile_picture,
+                google_id: user.google_id,
+                google_email: user.google_email,
+                google_picture: user.google_picture
             },
             create: {
-                email,
-                username,
-                name: faker.person.fullName(),
-                password_hash: passwordHash
+                id: user.id,
+                email: user.email,
+                username: user.username,
+                name: user.name,
+                password_hash: passwordHash,
+                profile_picture: user.profile_picture,
+                google_id: user.google_id,
+                google_email: user.google_email,
+                google_picture: user.google_picture,
+                created_at: new Date(user.created_at)
             }
         });
 
-        created.push(user);
+        created.push(createdUser);
     }
 
     return created;
 }
 
-async function seedThreads(users, count = 20) {
-    const categories = await prisma.category.findMany({ select: { id: true } });
+async function seedThreadsFromDummies(users) {
+    if (!users.length) {
+        throw new Error('Cannot seed threads without users');
+    }
+
+    const threads = loadJson(THREADS_PATH);
+    const categories = await prisma.category.findMany({ select: { id: true, sdg_number: true } });
     if (!categories.length) {
         throw new Error('Categories must exist before seeding threads');
     }
 
-    const baseThreads = [];
-    const allThreads = [];
+    const categoryMap = new Map(categories.map((category) => [category.sdg_number, category.id]));
 
-    for (let i = 0; i < count; i += 1) {
-        const author = faker.helpers.arrayElement(users);
-        const threadTitle = faker.lorem.sentence({ min: 5, max: 12 });
-        const body = faker.lorem
-            .paragraphs({ min: 2, max: 4, separator: '\n\n' })
-            .slice(0, 5000);
-        const tagCount = faker.number.int({ min: 0, max: 5 });
-        const rawTags = Array.from({ length: tagCount }, () => faker.hacker.noun());
-        const tags = [...new Set(rawTags.map((tag) => tag.toLowerCase()))];
+    const createdThreads = new Map();
+    const savedThreads = [];
 
-        const selectedCategories = faker.helpers.arrayElements(
-            categories,
-            faker.number.int({ min: 1, max: 3 })
+    const createThreadRecord = async (threadData) => {
+        const categoryIds = Array.from(
+            new Set(
+                (threadData.categories || [])
+                    .map((sdgNumber) => categoryMap.get(sdgNumber))
+                    .filter(Boolean)
+            )
         );
 
-        const thread = await prisma.thread.create({
+        if (!categoryIds.length) {
+            throw new Error(`Thread ${threadData.id} has no matching categories to connect`);
+        }
+
+        let imagePath = null;
+        if (threadData.image) {
+            imagePath = await downloadImageToUploads(threadData.image);
+        }
+
+        const created = await prisma.thread.create({
             data: {
-                author_id: author.id,
-                title: threadTitle,
-                body,
-                tags,
+                id: threadData.id,
+                author_id: faker.helpers.arrayElement(users).id,
+                parent_thread_id: threadData.parent_thread_id || null,
+                title: threadData.title,
+                body: threadData.body,
+                image: imagePath,
+                tags: threadData.tags ?? [],
+                status: threadData.status ?? 'ACTIVE',
+                review_score: threadData.review_score ?? 0,
+                created_at: new Date(threadData.created_at),
+                updated_at: new Date(threadData.updated_at || threadData.created_at),
                 categories: {
-                    create: selectedCategories.map((category) => ({
-                        category: { connect: { id: category.id } }
+                    create: categoryIds.map((categoryId) => ({
+                        category: { connect: { id: categoryId } }
                     }))
                 }
             }
         });
 
-        const record = {
-            id: thread.id,
-            title: threadTitle,
-            categories: selectedCategories
-        };
+        createdThreads.set(created.id, created);
+        savedThreads.push(created);
+    };
 
-        baseThreads.push(record);
-        allThreads.push(record);
+    const baseThreads = threads.filter((thread) => !thread.parent_thread_id);
+    const replyCandidates = threads.filter((thread) => thread.parent_thread_id);
+
+    for (const thread of baseThreads) {
+        await createThreadRecord(thread);
     }
 
-    // Create replies for a subset of threads
-    const replyThreads = [];
-    for (const baseThread of baseThreads.slice(0, Math.floor(baseThreads.length / 2))) {
-        const replyCount = faker.number.int({ min: 0, max: 5 });
-        for (let i = 0; i < replyCount; i += 1) {
-            const author = faker.helpers.arrayElement(users);
-            const reply = await prisma.thread.create({
-                data: {
-                    author_id: author.id,
-                    parent_thread_id: baseThread.id,
-                    title: `Re: ${baseThread.title}`,
-                    body: faker.lorem.paragraphs({ min: 1, max: 2, separator: '\n\n' }).slice(0, 3000),
-                    tags: [],
-                    categories: {
-                        create: baseThread.categories.map((cat) => ({
-                            category: { connect: { id: cat.id } }
-                        }))
-                    }
-                }
-            });
-            const record = {
-                id: reply.id,
-                title: reply.title,
-                categories: baseThread.categories
-            };
-            replyThreads.push(record);
-            allThreads.push(record);
+    let remaining = replyCandidates;
+    while (remaining.length) {
+        const nextRound = [];
+        for (const thread of remaining) {
+            if (createdThreads.has(thread.parent_thread_id)) {
+                await createThreadRecord(thread);
+            } else {
+                nextRound.push(thread);
+            }
         }
+
+        if (nextRound.length === remaining.length) {
+            throw new Error(
+                `Unable to resolve parent threads for replies: ${nextRound
+                    .map((thread) => thread.id)
+                    .join(', ')}`
+            );
+        }
+
+        remaining = nextRound;
     }
 
-    return { threads: allThreads };
+    return { threads: savedThreads };
 }
 
 async function seedInteractions(users, threads) {
@@ -213,8 +264,8 @@ async function seedInteractions(users, threads) {
 
 async function main() {
     await seedCategories();
-    const users = await seedUsers();
-    const { threads } = await seedThreads(users);
+    const users = await seedUsersFromDummies();
+    const { threads } = await seedThreadsFromDummies(users);
     await seedInteractions(users, threads);
 
     console.log('SDG forum seed completed successfully');
