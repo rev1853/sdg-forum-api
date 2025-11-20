@@ -53,13 +53,18 @@ pipeline {
                 script {
                     def seedContainer = "sdg-forum-api-seed"
                     def appContainer = "sdg-forum-api"
+                    def uploadsSnapshot = "uploads_seed_snapshot"
 
                     try {
                         sh "docker rm -f ${seedContainer} || true"
+                        sh "rm -rf ${uploadsSnapshot}"
                         sh "docker compose run --name ${seedContainer} api npm run prisma:seed"
-                        sh "docker cp ${seedContainer}:/app/uploads ${appContainer}:/app/"
+                        sh "docker cp ${seedContainer}:/app/uploads ${uploadsSnapshot}"
+                        sh "docker exec ${appContainer} mkdir -p /app/uploads"
+                        sh "docker cp ${uploadsSnapshot}/. ${appContainer}:/app/uploads"
                     } finally {
                         sh "docker rm -f ${seedContainer} || true"
+                        sh "rm -rf ${uploadsSnapshot}"
                     }
                 }
             }
