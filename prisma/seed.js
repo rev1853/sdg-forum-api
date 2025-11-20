@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const { randomUUID } = require('crypto');
 
 const { PrismaClient } = require('@prisma/client');
 const { fakerEN } = require('@faker-js/faker');
@@ -65,7 +64,9 @@ const inferExtension = (imageUrl, contentType) => {
     return '.jpg';
 };
 
-const downloadImageToUploads = async (imageUrl) => {
+const sanitizePathSegment = (value) => value.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+const downloadImageToUploads = async (imageUrl, threadId) => {
     ensureUploadsRoot();
 
     const response = await fetch(imageUrl);
@@ -75,15 +76,15 @@ const downloadImageToUploads = async (imageUrl) => {
 
     const contentType = response.headers.get('content-type') || '';
     const extension = inferExtension(imageUrl, contentType);
-    const folderName = randomUUID();
-    const targetDir = path.join(uploadsRoot, folderName);
+    const safeThreadId = sanitizePathSegment(threadId || `thread_${Date.now()}`);
+    const targetDir = path.join(uploadsRoot, safeThreadId);
     fs.mkdirSync(targetDir, { recursive: true });
 
-    const filename = `${randomUUID()}${extension}`;
+    const filename = `${safeThreadId}${extension}`;
     const buffer = Buffer.from(await response.arrayBuffer());
     fs.writeFileSync(path.join(targetDir, filename), buffer);
 
-    return path.join('uploads', folderName, filename);
+    return path.join('uploads', safeThreadId, filename);
 };
 
 async function seedUsersFromDummies() {
@@ -156,7 +157,7 @@ async function seedThreadsFromDummies(users) {
 
         let imagePath = null;
         if (threadData.image) {
-            imagePath = await downloadImageToUploads(threadData.image);
+            imagePath = await downloadImageToUploads(threadData.image, threadData.id);
         }
 
         const created = await prisma.thread.create({
