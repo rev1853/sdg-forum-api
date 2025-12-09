@@ -2,7 +2,7 @@ const prisma = require('../prisma');
 const { reviewThread } = require('./threadReviewService');
 const ApiError = require('../utils/ApiError');
 
-const MATCH_THRESHOLD = Number(process.env.THREAD_REVIEW_MATCH_THRESHOLD ?? 75);
+const MATCH_THRESHOLD = Number(process.env.THREAD_REVIEW_MATCH_THRESHOLD ?? 70);
 const REPORT_THRESHOLD = Number(process.env.THREAD_REPORT_THRESHOLD ?? 10);
 
 const evaluateReviewScore = (review) => {
@@ -18,7 +18,10 @@ const handleLowScore = async (threadId, score) => {
     data: { status: 'REMOVED', review_score: score }
   });
 
-  throw new ApiError(400, 'Thread content does not match selected categories and has been removed');
+  throw new ApiError(
+    400,
+    'Thread is not valid because the message is not relevant with the categories'
+  );
 };
 
 const reviewNewThread = async (thread) => {

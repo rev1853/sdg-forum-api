@@ -47,10 +47,12 @@ describe('threadService.createThread', () => {
     jest.clearAllMocks();
 
     prisma.category.findMany.mockResolvedValue([
-      { id: 'cat-11' }
+      { id: 'cat-11', name: 'Sustainable Cities and Communities', sdg_number: 11 }
     ]);
 
-    prisma.thread.create.mockResolvedValue(buildThreadRecord());
+    prisma.thread.create.mockImplementation(({ data }) =>
+      buildThreadRecord({ review_score: data.review_score ?? 0 })
+    );
     prisma.thread.update.mockResolvedValue(buildThreadRecord({ review_score: 75 }));
 
     reviewThread.mockResolvedValue({ score: 75, reasoning: 'Matches SDG 11 well.' });
@@ -68,8 +70,13 @@ describe('threadService.createThread', () => {
 
     expect(prisma.category.findMany).toHaveBeenCalledWith({
       where: { id: { in: ['cat-11'] } },
-      select: { id: true }
+      select: { id: true, name: true, sdg_number: true }
     });
+    expect(prisma.thread.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ review_score: 75 })
+      })
+    );
     expect(prisma.thread.create).toHaveBeenCalled();
     expect(reviewThread).toHaveBeenCalledWith({
       title: 'A better future',
@@ -80,12 +87,29 @@ describe('threadService.createThread', () => {
       ]),
       imagePath: null
     });
-    expect(prisma.thread.update).toHaveBeenCalledWith({
-      where: { id: 'thread-1' },
-      data: { review_score: 75 }
-    });
+    expect(prisma.thread.update).not.toHaveBeenCalled();
     expect(result.review_score).toBe(75);
     expect(result.counts).toEqual({ likes: 0, reposts: 0, replies: 0 });
+  });
+
+  it('rejects thread when relevance score is below threshold', async () => {
+    reviewThread.mockResolvedValue({ score: 60, reasoning: 'Off-topic content.' });
+
+    await expect(
+      createThread({
+        authorId: 'user-1',
+        title: 'A better future',
+        body: 'Discussing unrelated finance topics.',
+        categoryIds: ['cat-11'],
+        tags: ['finance'],
+        imagePath: null
+      })
+    ).rejects.toThrow(
+      'Thread is not valid because the message is not relevant with the categories'
+    );
+
+    expect(prisma.thread.create).not.toHaveBeenCalled();
+    expect(reviewThread).toHaveBeenCalledTimes(1);
   });
 
   it('skips review for reply threads', async () => {

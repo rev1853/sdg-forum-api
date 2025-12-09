@@ -4,6 +4,11 @@ const {
   reviewNewThread,
   checkReportThreshold
 } = require('./threadAutoModerationService');
+const { reviewThread } = require('./threadReviewService');
+
+const MATCH_THRESHOLD = Number(process.env.THREAD_REVIEW_MATCH_THRESHOLD ?? 70);
+const RELEVANCE_ERROR_MESSAGE =
+  'Thread is not valid because the message is not relevant with the categories';
 
 const sanitizeTags = (tags) => {
   if (!tags) {
@@ -122,14 +127,14 @@ const validateCategorySelection = async (categoryIds) => {
 
   const categories = await prisma.category.findMany({
     where: { id: { in: uniqueIds } },
-    select: { id: true }
+    select: { id: true, name: true, sdg_number: true }
   });
 
   if (categories.length !== uniqueIds.length) {
     throw new ApiError(404, 'One or more categories do not exist');
   }
 
-  return uniqueIds;
+  return { ids: uniqueIds, categories };
 };
 
 const ensureActiveThread = async (threadId) => {
@@ -143,6 +148,26 @@ const ensureActiveThread = async (threadId) => {
   }
 
   return thread;
+};
+
+const ensureThreadRelevance = async ({ title, body, tags, categories, imagePath }) => {
+  const review = await reviewThread({
+    title,
+    body,
+    tags: tags ?? [],
+    categories: categories ?? [],
+    imagePath: imagePath || null
+  });
+
+  if (!review || typeof review.score !== 'number') {
+    return null;
+  }
+
+  if (review.score < MATCH_THRESHOLD) {
+    throw new ApiError(400, RELEVANCE_ERROR_MESSAGE);
+  }
+
+  return review;
 };
 
 const createThread = async ({
@@ -169,12 +194,14 @@ const createThread = async ({
   };
 
   let categoryConnect;
+  let selectedCategories = [];
 
   if (parentThreadId) {
     await ensureActiveThread(parentThreadId);
 
     if (Array.isArray(categoryIds) && categoryIds.length > 0) {
-      const validIds = await validateCategorySelection(categoryIds);
+      const { ids: validIds, categories } = await validateCategorySelection(categoryIds);
+      selectedCategories = categories;
       categoryConnect = {
         create: validIds.map((id) => ({
           category: { connect: { id } }
@@ -194,12 +221,29 @@ const createThread = async ({
       throw new ApiError(400, 'Thread title is required');
     }
 
-    const validIds = await validateCategorySelection(categoryIds || []);
+    const { ids: validIds, categories } = await validateCategorySelection(categoryIds || []);
+    selectedCategories = categories;
     categoryConnect = {
       create: validIds.map((id) => ({
         category: { connect: { id } }
       }))
     };
+  }
+
+  let preReview = null;
+
+  if (!parentThreadId) {
+    preReview = await ensureThreadRelevance({
+      title: data.title,
+      body: data.body,
+      tags: sanitizedTags,
+      categories: selectedCategories,
+      imagePath
+    });
+
+    if (preReview) {
+      data.review_score = preReview.score;
+    }
   }
 
   const thread = await prisma.thread.create({
@@ -221,7 +265,7 @@ const createThread = async ({
     }
   });
 
-  if (!parentThreadId) {
+  if (!parentThreadId && !preReview) {
     try {
       const review = await reviewNewThread({
         ...thread,
@@ -238,6 +282,8 @@ const createThread = async ({
       }
       console.error('Thread review failed', error);
     }
+  } else if (preReview) {
+    thread.review_score = preReview.score;
   }
 
   return applyMetrics(thread);
