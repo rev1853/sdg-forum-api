@@ -9,6 +9,8 @@ const { reviewThread } = require('./threadReviewService');
 const MATCH_THRESHOLD = Number(process.env.THREAD_REVIEW_MATCH_THRESHOLD ?? 70);
 const RELEVANCE_ERROR_MESSAGE =
   'Thread is not valid because the message is not relevant with the categories';
+const RELEVANCE_UNAVAILABLE_MESSAGE =
+  'Thread relevance check is unavailable, please try again';
 
 const sanitizeTags = (tags) => {
   if (!tags) {
@@ -151,23 +153,31 @@ const ensureActiveThread = async (threadId) => {
 };
 
 const ensureThreadRelevance = async ({ title, body, tags, categories, imagePath }) => {
-  const review = await reviewThread({
-    title,
-    body,
-    tags: tags ?? [],
-    categories: categories ?? [],
-    imagePath: imagePath || null
-  });
+  try {
+    const review = await reviewThread({
+      title,
+      body,
+      tags: tags ?? [],
+      categories: categories ?? [],
+      imagePath: imagePath || null
+    });
 
-  if (!review || typeof review.score !== 'number') {
-    return null;
+    if (!review || typeof review.score !== 'number') {
+      throw new ApiError(503, RELEVANCE_UNAVAILABLE_MESSAGE);
+    }
+
+    if (review.score < MATCH_THRESHOLD) {
+      throw new ApiError(400, RELEVANCE_ERROR_MESSAGE);
+    }
+
+    return review;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error('Thread relevance check failed', error);
+    throw new ApiError(503, RELEVANCE_UNAVAILABLE_MESSAGE);
   }
-
-  if (review.score < MATCH_THRESHOLD) {
-    throw new ApiError(400, RELEVANCE_ERROR_MESSAGE);
-  }
-
-  return review;
 };
 
 const createThread = async ({

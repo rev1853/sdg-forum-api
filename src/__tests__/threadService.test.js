@@ -112,6 +112,26 @@ describe('threadService.createThread', () => {
     expect(reviewThread).toHaveBeenCalledTimes(1);
   });
 
+  it('fails when relevance service is unavailable', async () => {
+    reviewThread.mockResolvedValue(null);
+
+    await expect(
+      createThread({
+        authorId: 'user-1',
+        title: 'A better future',
+        body: 'Discussing sustainable cities and communities initiatives.',
+        categoryIds: ['cat-11'],
+        tags: ['sustainable', 'cities'],
+        imagePath: null
+      })
+    ).rejects.toMatchObject({
+      statusCode: 503,
+      message: 'Thread relevance check is unavailable, please try again'
+    });
+
+    expect(prisma.thread.create).not.toHaveBeenCalled();
+  });
+
   it('skips review for reply threads', async () => {
     prisma.thread.findFirst.mockResolvedValue({ id: 'parent-thread', status: 'ACTIVE' });
     prisma.thread.create.mockResolvedValue(
