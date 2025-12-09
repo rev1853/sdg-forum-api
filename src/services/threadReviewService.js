@@ -55,34 +55,28 @@ Return a JSON object with:
 - reasoning: short explanation (max 50 words)
 Be strict but fair; consider title, body, tags, and image description if present. Make sure to ONLY output valid JSON.`;
 
-  const content = [
+  const userContent = [
     {
-      role: 'system',
-      content: prompt
-    },
-    {
-      role: 'user',
-      content: [
-        {
-          type: 'text',
-          text: `Title: ${title || 'N/A'}\n\nBody: ${body || 'N/A'}\n\nTags: ${tagList.join(', ') || 'None'}\n\nCategories: ${categoryList.join(', ') || 'None'}\n\nIf the image is provided, incorporate it into your assessment.`
-        }
-      ]
+      type: 'text',
+      text: `Title: ${title || 'N/A'}\n\nBody: ${body || 'N/A'}\n\nTags: ${tagList.join(', ') || 'None'}\n\nCategories: ${categoryList.join(', ') || 'None'}\n\nIf the image is provided, incorporate it into your assessment.`
     }
   ];
 
   const dataUrl = toDataUrl(imagePath);
   if (dataUrl) {
-    content[1].content.push({
-      type: 'image',
+    userContent.push({
+      type: 'image_url',
       image_url: { url: dataUrl }
     });
   }
 
   try {
-    const response = await openaiClient.responses.create({
+    const response = await openaiClient.chat.completions.create({
       model: 'gpt-4.1-mini',
-      input: content,
+      messages: [
+        { role: 'system', content: prompt },
+        { role: 'user', content: userContent }
+      ],
       response_format: {
         type: 'json_schema',
         json_schema: {
@@ -99,7 +93,9 @@ Be strict but fair; consider title, body, tags, and image description if present
       }
     });
 
-    const textOutput = response?.output?.[0]?.content?.[0]?.text;
+    const messageContent = response?.choices?.[0]?.message?.content;
+    const textOutput =
+      (Array.isArray(messageContent) ? messageContent[0]?.text : messageContent) || null;
     if (!textOutput) {
       return null;
     }
