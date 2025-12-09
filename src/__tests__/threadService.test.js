@@ -104,9 +104,12 @@ describe('threadService.createThread', () => {
         tags: ['finance'],
         imagePath: null
       })
-    ).rejects.toThrow(
-      'Thread is not valid because the message is not relevant with the categories'
-    );
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'Thread is not valid because the message is not relevant with the categories',
+      status: 'REVIEW_FAILED',
+      details: { status: 'REVIEW_FAILED' }
+    });
 
     expect(prisma.thread.create).not.toHaveBeenCalled();
     expect(reviewThread).toHaveBeenCalledTimes(1);
@@ -126,7 +129,9 @@ describe('threadService.createThread', () => {
       })
     ).rejects.toMatchObject({
       statusCode: 503,
-      message: 'Thread relevance check is unavailable, please try again'
+      message: 'Thread relevance check is unavailable, please try again',
+      status: 'REVIEW_FAILED',
+      details: { status: 'REVIEW_FAILED' }
     });
 
     expect(prisma.thread.create).not.toHaveBeenCalled();

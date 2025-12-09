@@ -11,6 +11,7 @@ const RELEVANCE_ERROR_MESSAGE =
   'Thread is not valid because the message is not relevant with the categories';
 const RELEVANCE_UNAVAILABLE_MESSAGE =
   'Thread relevance check is unavailable, please try again';
+const RELEVANCE_ERROR_STATUS = 'REVIEW_FAILED';
 
 const sanitizeTags = (tags) => {
   if (!tags) {
@@ -163,11 +164,13 @@ const ensureThreadRelevance = async ({ title, body, tags, categories, imagePath 
     });
 
     if (!review || typeof review.score !== 'number') {
-      throw new ApiError(503, RELEVANCE_UNAVAILABLE_MESSAGE);
+      throw new ApiError(503, RELEVANCE_UNAVAILABLE_MESSAGE, {
+        status: RELEVANCE_ERROR_STATUS
+      });
     }
 
     if (review.score < MATCH_THRESHOLD) {
-      throw new ApiError(400, RELEVANCE_ERROR_MESSAGE);
+      throw new ApiError(400, RELEVANCE_ERROR_MESSAGE, { status: RELEVANCE_ERROR_STATUS });
     }
 
     return review;
@@ -176,7 +179,9 @@ const ensureThreadRelevance = async ({ title, body, tags, categories, imagePath 
       throw error;
     }
     console.error('Thread relevance check failed', error);
-    throw new ApiError(503, RELEVANCE_UNAVAILABLE_MESSAGE);
+    throw new ApiError(503, RELEVANCE_UNAVAILABLE_MESSAGE, {
+      status: RELEVANCE_ERROR_STATUS
+    });
   }
 };
 

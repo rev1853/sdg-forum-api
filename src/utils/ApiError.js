@@ -3,8 +3,8 @@ class ApiError extends Error {
     super(message);
     this.statusCode = statusCode;
     this.details = details;
+    this.status = details?.status || null;
   }
 }
 
 module.exports = ApiError;
-
