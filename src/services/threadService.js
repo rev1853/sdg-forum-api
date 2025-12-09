@@ -85,11 +85,11 @@ const applyMetrics = (thread, metrics = { likes: 0, reposts: 0 }) => {
 
   const normalizedAuthor = author
     ? {
-        id: author.id,
-        username: author.username,
-        name: author.name,
-        profile_picture: author.profile_picture || author.google_picture || null
-      }
+      id: author.id,
+      username: author.username,
+      name: author.name,
+      profile_picture: author.profile_picture || author.google_picture || null
+    }
     : null;
 
   return {
@@ -318,26 +318,26 @@ const listThreads = async ({
     parent_thread_id: null,
     ...(search
       ? {
-          title: {
-            contains: search
-          }
+        title: {
+          contains: search
         }
+      }
       : {}),
     ...(tags.length
       ? {
-          tags: {
-            array_contains: tags
-          }
+        tags: {
+          array_contains: tags
         }
+      }
       : {}),
     ...(categoryIds.length
       ? {
-          categories: {
-            some: {
-              category_id: { in: categoryIds }
-            }
+        categories: {
+          some: {
+            category_id: { in: categoryIds }
           }
         }
+      }
       : {})
   };
 
@@ -766,6 +766,60 @@ const removeThread = async (threadId, userId) => {
   ]);
 };
 
+const updateThread = async (threadId, userId, { title, body, tags, categoryIds, imagePath }) => {
+  const thread = await prisma.thread.findUnique({
+    where: { id: threadId },
+    select: { id: true, author_id: true, status: true }
+  });
+
+  if (!thread) {
+    throw new ApiError(404, 'Thread not found');
+  }
+
+  if (thread.author_id !== userId) {
+    throw new ApiError(403, 'Only the thread owner can update this thread');
+  }
+
+  if (thread.status === 'REMOVED') {
+    throw new ApiError(400, 'Cannot update a removed thread');
+  }
+
+  const data = {};
+  if (title !== undefined) data.title = title.trim();
+  if (body !== undefined) data.body = body.trim();
+  if (imagePath !== undefined) data.image = imagePath;
+  if (tags !== undefined) data.tags = sanitizeTags(tags);
+
+  if (categoryIds !== undefined) {
+    const { ids: validIds } = await validateCategorySelection(categoryIds);
+    data.categories = {
+      deleteMany: {},
+      create: validIds.map((id) => ({
+        category: { connect: { id } }
+      }))
+    };
+  }
+
+  const updatedThread = await prisma.thread.update({
+    where: { id: threadId },
+    data,
+    include: {
+      author: { select: { id: true, username: true, name: true } },
+      categories: {
+        include: { category: { select: { id: true, name: true, sdg_number: true } } }
+      },
+      parent: {
+        select: { id: true, title: true }
+      },
+      _count: {
+        select: { replies: true }
+      }
+    }
+  });
+
+  return applyMetrics(updatedThread);
+};
+
 module.exports = {
   sanitizeTags,
   createThread,
@@ -779,5 +833,6 @@ module.exports = {
   createReport,
   listUserThreads,
   listUserReposts,
-  removeThread
+  removeThread,
+  updateThread
 };
