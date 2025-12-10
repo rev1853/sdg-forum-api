@@ -3,12 +3,6 @@ const prisma = require('../prisma');
 const { createMessage } = require('../services/chatMessageService');
 const { ensureGroupExists, ensureSdgGroups } = require('../services/chatGroupService');
 
-const parseAllowedOrigins = () =>
-  (process.env.CORS_ORIGINS || '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-
 const registerSocketEvents = (io) => {
   io.use(async (socket, next) => {
     try {
@@ -95,11 +89,9 @@ const registerSocketEvents = (io) => {
 };
 
 const initSocket = (server) => {
-  const allowedOrigins = parseAllowedOrigins();
   const io = new Server(server, {
     cors: {
-      origin: allowedOrigins.length === 0 ? true : allowedOrigins,
-      credentials: true
+      origin: '*'
     }
   });
 

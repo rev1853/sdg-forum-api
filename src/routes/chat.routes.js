@@ -25,6 +25,21 @@ const router = express.Router();
  *     responses:
  *       200:
  *         description: Paginated list of chat groups
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/ChatGroup'
+ *                 pagination:
+ *                   $ref: '#/components/schemas/Pagination'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  */
 router.get('/groups', listGroupsController);
 
@@ -44,6 +59,17 @@ router.get('/groups', listGroupsController);
  *     responses:
  *       200:
  *         description: Chat group detail
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 group:
+ *                   $ref: '#/components/schemas/ChatGroup'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
  */
 router.get('/groups/:groupId', getGroupController);
 
@@ -74,6 +100,21 @@ router.get('/groups/:groupId', getGroupController);
  *     responses:
  *       200:
  *         description: Messages list
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 messages:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/ChatMessage'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
  */
 router.get('/groups/:groupId/messages', authenticate, listMessagesController);
 

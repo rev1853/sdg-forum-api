@@ -13,19 +13,8 @@ const usersRoutes = require('./routes/users.routes');
 
 const app = express();
 
-const parseAllowedOrigins = () =>
-  (process.env.CORS_ORIGINS || '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-const allowedOrigins = parseAllowedOrigins();
-const corsOptions =
-  allowedOrigins.length === 0
-    ? { origin: true, credentials: true }
-    : { origin: allowedOrigins, credentials: true };
-
-app.use(cors(corsOptions));
+// Allow all origins (no CORS restriction)
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
