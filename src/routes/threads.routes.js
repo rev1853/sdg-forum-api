@@ -323,4 +323,47 @@ router.post('/:threadId/report', authenticate, reportThreadController);
  */
 router.delete('/:threadId', authenticate, deleteThreadController);
 
+/**
+ * @openapi
+ * /threads/{threadId}:
+ *   put:
+ *     tags:
+ *       - Threads
+ *     summary: Update a thread (owner only)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: threadId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               body:
+ *                 type: string
+ *               categoryIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Thread updated
+ * */
+router.put('/:threadId', authenticate, upload.single('image'), require('../controllers/threads/updateThreadController'));
+
 module.exports = router;
