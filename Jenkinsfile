@@ -36,39 +36,39 @@ pipeline {
             }
         }
 
-        stage('Prisma Reset') {
-            steps {
-                sh 'docker compose run --rm api npx prisma migrate reset --force --skip-seed'
-            }
-        }
+        // stage('Prisma Reset') {
+        //     steps {
+        //         sh 'docker compose run --rm api npx prisma migrate reset --force --skip-seed'
+        //     }
+        // }
 
-        stage('Prisma Migrate') {
-            steps {
-                sh 'docker compose run --rm api npx prisma migrate deploy'
-            }
-        }
+        // stage('Prisma Migrate') {
+        //     steps {
+        //         sh 'docker compose run --rm api npx prisma migrate deploy'
+        //     }
+        // }
 
-        stage('Prisma Seed') {
-            steps {
-                script {
-                    def seedContainer = "sdg-forum-api-seed"
-                    def appContainer = "sdg-forum-api"
-                    def uploadsSnapshot = "uploads_seed_snapshot"
+        // stage('Prisma Seed') {
+        //     steps {
+        //         script {
+        //             def seedContainer = "sdg-forum-api-seed"
+        //             def appContainer = "sdg-forum-api"
+        //             def uploadsSnapshot = "uploads_seed_snapshot"
 
-                    try {
-                        sh "docker rm -f ${seedContainer} || true"
-                        sh "rm -rf ${uploadsSnapshot}"
-                        sh "docker compose run --name ${seedContainer} api npm run prisma:seed"
-                        sh "docker cp ${seedContainer}:/app/uploads ${uploadsSnapshot}"
-                        sh "docker exec ${appContainer} mkdir -p /app/uploads"
-                        sh "docker cp ${uploadsSnapshot}/. ${appContainer}:/app/uploads"
-                    } finally {
-                        sh "docker rm -f ${seedContainer} || true"
-                        sh "rm -rf ${uploadsSnapshot}"
-                    }
-                }
-            }
-        }
+        //             try {
+        //                 sh "docker rm -f ${seedContainer} || true"
+        //                 sh "rm -rf ${uploadsSnapshot}"
+        //                 sh "docker compose run --name ${seedContainer} api npm run prisma:seed"
+        //                 sh "docker cp ${seedContainer}:/app/uploads ${uploadsSnapshot}"
+        //                 sh "docker exec ${appContainer} mkdir -p /app/uploads"
+        //                 sh "docker cp ${uploadsSnapshot}/. ${appContainer}:/app/uploads"
+        //             } finally {
+        //                 sh "docker rm -f ${seedContainer} || true"
+        //                 sh "rm -rf ${uploadsSnapshot}"
+        //             }
+        //         }
+        //     }
+        // }
     }
 
     post {
