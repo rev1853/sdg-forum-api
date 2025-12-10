@@ -54,7 +54,6 @@ model User {
     interactions         Interaction[]
     reportsFiled         Report[]             @relation("ReportReporter")
     resetTokens          PasswordResetToken[]
-    chatGroupsOwned      ChatGroup[]          @relation("ChatGroupOwner")
     chatGroupMemberships ChatGroupMember[]
     chatMessages         ChatMessage[]
 
@@ -167,16 +166,13 @@ enum ChatGroupRole {
 model ChatGroup {
     id         String   @id @default(cuid())
     name       String
-    owner_id   String
     created_at DateTime @default(now())
     updated_at DateTime @updatedAt
 
-    owner      User                @relation("ChatGroupOwner", fields: [owner_id], references: [id], onDelete: Cascade)
     categories ChatGroupCategory[]
     members    ChatGroupMember[]
     messages   ChatMessage[]
 
-    @@index([owner_id])
     @@index([created_at])
 }
 

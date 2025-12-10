@@ -2,7 +2,7 @@ const { Server } = require('socket.io');
 const prisma = require('../prisma');
 const { verifyToken } = require('../services/jwtService');
 const { createMessage } = require('../services/chatMessageService');
-const { ensureActiveMember } = require('../services/chatGroupService');
+const { ensureGroupExists, ensureSdgGroups } = require('../services/chatGroupService');
 
 const registerSocketEvents = (io) => {
   io.use(async (socket, next) => {
@@ -39,7 +39,8 @@ const registerSocketEvents = (io) => {
 
     socket.on('chat:join', async ({ groupId }, callback = () => {}) => {
       try {
-        await ensureActiveMember(groupId, user.id);
+        await ensureSdgGroups();
+        await ensureGroupExists(groupId);
         socket.join(`group:${groupId}`);
         callback({ status: 'ok' });
       } catch (error) {
@@ -105,4 +106,3 @@ const initSocket = (server) => {
 module.exports = {
   initSocket
 };
-

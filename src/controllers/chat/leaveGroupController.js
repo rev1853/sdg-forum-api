@@ -1,7 +1,6 @@
 const asyncHandler = require('../../utils/asyncHandler');
-const { leaveGroup } = require('../../services/chatGroupService');
+const ApiError = require('../../utils/ApiError');
 
-module.exports = asyncHandler(async (req, res) => {
-  await leaveGroup(req.params.groupId, req.user.id);
-  res.status(204).send();
+module.exports = asyncHandler(async (_req, _res) => {
+  throw new ApiError(410, 'Chat groups are fixed to SDG categories and do not support leaving');
 });

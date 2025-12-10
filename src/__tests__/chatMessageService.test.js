@@ -5,9 +5,6 @@ jest.mock('../prisma', () => ({
   chatGroup: {
     findUnique: jest.fn()
   },
-  chatGroupMember: {
-    findUnique: jest.fn()
-  },
   chatMessage: {
     findUnique: jest.fn(),
     create: jest.fn(),
@@ -17,7 +14,7 @@ jest.mock('../prisma', () => ({
 
 jest.mock('../services/chatGroupService', () => ({
   ensureGroupExists: jest.fn(async () => ({})),
-  ensureActiveMember: jest.fn(async () => ({ group_id: 'group-1', user_id: 'user-1', left_at: null }))
+  ensureSdgGroups: jest.fn(async () => {})
 }));
 
 jest.mock('../utils/messageId', () => ({
@@ -25,7 +22,7 @@ jest.mock('../utils/messageId', () => ({
 }));
 
 const { createMessage, listMessages } = require('../services/chatMessageService');
-const { ensureActiveMember } = require('../services/chatGroupService');
+const { ensureGroupExists, ensureSdgGroups } = require('../services/chatGroupService');
 
 const buildMessageRecord = () => ({
   id: 'abc123000',
@@ -72,7 +69,8 @@ describe('chatMessageService', () => {
   it('lists messages with pagination', async () => {
     const messages = await listMessages('group-1', 'user-1', { after: 'abc', limit: 10 });
 
-    expect(ensureActiveMember).toHaveBeenCalledWith('group-1', 'user-1');
+    expect(ensureSdgGroups).toHaveBeenCalled();
+    expect(ensureGroupExists).toHaveBeenCalledWith('group-1');
     expect(prisma.chatMessage.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ id: { gt: 'abc' } }),
       take: 10

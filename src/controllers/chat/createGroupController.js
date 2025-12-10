@@ -1,13 +1,6 @@
 const asyncHandler = require('../../utils/asyncHandler');
-const { createGroup } = require('../../services/chatGroupService');
+const ApiError = require('../../utils/ApiError');
 
-module.exports = asyncHandler(async (req, res) => {
-  const { name, categoryIds } = req.body || {};
-
-  const group = await createGroup(req.user.id, {
-    name,
-    categoryIds: Array.isArray(categoryIds) ? categoryIds : []
-  });
-
-  res.status(201).json({ group });
+module.exports = asyncHandler(async (_req, _res) => {
+  throw new ApiError(410, 'Chat groups are fixed to SDG categories and cannot be created');
 });

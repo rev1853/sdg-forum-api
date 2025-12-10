@@ -1,7 +1,7 @@
 const prisma = require('../prisma');
 const ApiError = require('../utils/ApiError');
 const { generateMessageId } = require('../utils/messageId');
-const { ensureActiveMember, ensureGroupExists } = require('./chatGroupService');
+const { ensureGroupExists, ensureSdgGroups } = require('./chatGroupService');
 
 const MAX_MESSAGE_LENGTH = 2000;
 
@@ -13,11 +13,8 @@ const sanitizeBody = (body) => {
 };
 
 const createMessage = async ({ groupId, userId, body, replyToId }) => {
+  await ensureSdgGroups();
   await ensureGroupExists(groupId);
-  const membership = await ensureActiveMember(groupId, userId);
-  if (membership.left_at) {
-    throw new ApiError(403, 'You have left this group');
-  }
 
   const sanitizedBody = sanitizeBody(body);
   if (!sanitizedBody) {
@@ -65,7 +62,8 @@ const createMessage = async ({ groupId, userId, body, replyToId }) => {
 };
 
 const listMessages = async (groupId, userId, { after, limit = 50 }) => {
-  await ensureActiveMember(groupId, userId);
+  await ensureSdgGroups();
+  await ensureGroupExists(groupId);
 
   const where = {
     group_id: groupId
@@ -98,4 +96,3 @@ module.exports = {
   createMessage,
   listMessages
 };
-

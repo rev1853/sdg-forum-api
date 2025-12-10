@@ -24,14 +24,15 @@ socket.on('connect_error', (err) => {
 - The server rejects unauthenticated handshakes with `Unauthorized`.
 
 ### Room Model
-- Each chat group has a room `group:<groupId>`.
-- A client must explicitly join/leave the room after connecting.
+- There are 17 fixed chat groups, one per SDG, with ids `sdg-group-<sdg_number>` (e.g., `sdg-group-1` for SDG 1).
+- Each chat group maps to a room `group:<groupId>`.
+- Clients join/leave rooms at the socket level to receive broadcasts, but there is no membership gating.
 
 ### Client → Server Events
 
 | Event        | Payload                              | Description |
 |--------------|--------------------------------------|-------------|
-| `chat:join`  | `{ groupId }`                        | Validates membership (user must have joined via REST). On success the socket joins `group:<groupId>`. Callback signature `callback({ status: 'ok' })` or `callback({ status: 'error', message })`. |
+| `chat:join`  | `{ groupId }`                        | Ensures the SDG room exists, then joins `group:<groupId>`. No membership required. Callback signature `callback({ status: 'ok' })` or `callback({ status: 'error', message })`. |
 | `chat:leave` | `{ groupId }`                        | Leaves the Socket.IO room (does not alter DB membership). Same callback pattern. |
 | `chat:send`  | `{ groupId, body, replyToId? }`      | Sends a text message (max 2000 chars). Optional `replyToId` must reference an existing message in the same group. On success, message is persisted and broadcast; response `callback({ status: 'ok' })` or error object. |
 
@@ -53,8 +54,8 @@ socket.on('connect_error', (err) => {
 - `reply_to` contains `{ id, body, user }` if the message is a reply.
 - Messages are ordered lexicographically by `id`. Fetch prior history via REST: `GET /chat/groups/{groupId}/messages?after=<lastMessageId>&limit=<n>`.
 
-### Typical Workflow
-1. **Join group via REST**: `POST /chat/groups/:groupId/join`.
+### Typical Workflow (fixed SDG rooms)
+1. **Fetch rooms (optional)** via REST: `GET /chat/groups` for the 17 SDG rooms.
 2. **Connect Socket.IO** with JWT.
 3. **Join real-time room**:
    ```js
@@ -83,10 +84,9 @@ socket.on('connect_error', (err) => {
 ### Error Handling
 - All event callbacks return `{ status: 'ok' }` or `{ status: 'error', message }`.
 - Connection-level failures surface via `connect_error`.
-- If the user’s membership changes (e.g., they leave via REST), subsequent socket actions return 403; rejoin via REST before reconnecting.
+- If the provided `groupId` is invalid (not one of the SDG rooms), callbacks return an error.
 
 ### Notes
 - Messages are text-only per spec; attachments are not processed.
-- Membership is enforced server-side for every message send.
-- Clients are responsible for read/unread tracking and paging history.
-
+- Membership is not required; any authenticated user can post in any SDG room.
+- Clients are responsible for read/unread tracking and paging history (REST: `GET /chat/groups/{groupId}/messages` with `after`/`limit`).
