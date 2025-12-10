@@ -1,6 +1,5 @@
 const { Server } = require('socket.io');
 const prisma = require('../prisma');
-const { verifyToken } = require('../services/jwtService');
 const { createMessage } = require('../services/chatMessageService');
 const { ensureGroupExists, ensureSdgGroups } = require('../services/chatGroupService');
 
@@ -13,24 +12,22 @@ const parseAllowedOrigins = () =>
 const registerSocketEvents = (io) => {
   io.use(async (socket, next) => {
     try {
-      const token =
-        socket.handshake.auth?.token ||
-        socket.handshake.query?.token ||
-        socket.handshake.headers?.authorization?.replace('Bearer ', '');
+      const userId =
+        socket.handshake.auth?.userId ||
+        socket.handshake.query?.userId ||
+        socket.handshake.headers?.['x-user-id'];
 
-      if (!token) {
-        return next(new Error('Unauthorized'));
+      if (!userId) {
+        return next(new Error('User id required'));
       }
 
-      const decoded = verifyToken(token);
-
       const user = await prisma.user.findUnique({
-        where: { id: decoded.sub },
+        where: { id: userId },
         select: { id: true, username: true, name: true }
       });
 
       if (!user) {
-        return next(new Error('Unauthorized'));
+        return next(new Error('User not found'));
       }
 
       socket.data.user = user;
