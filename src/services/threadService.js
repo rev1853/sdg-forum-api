@@ -170,7 +170,11 @@ const ensureThreadRelevance = async ({ title, body, tags, categories, imagePath 
     }
 
     if (review.score < MATCH_THRESHOLD) {
-      throw new ApiError(400, RELEVANCE_ERROR_MESSAGE, { status: RELEVANCE_ERROR_STATUS });
+      throw new ApiError(400, RELEVANCE_ERROR_MESSAGE, {
+        status: RELEVANCE_ERROR_STATUS,
+        score: review.score,
+        review_text: review.recommendation || review.reasoning || ''
+      });
     }
 
     return review;

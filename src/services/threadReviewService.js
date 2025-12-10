@@ -52,7 +52,8 @@ const reviewThread = async ({ title, body, tags, categories, imagePath }) => {
 Evaluate whether the provided thread content matches the declared SDG categories.
 Return a JSON object with:
 - match_percentage: number between 0 and 100 (no percent sign)
-- reasoning: short explanation (max 50 words)
+- reasoning: short explanation (max 30 words)
+- recommendation: short suggestion to make the content more relevant (max 30 words)
 Be strict but fair; consider title, body, tags, and image description if present. Make sure to ONLY output valid JSON.`;
 
   const userContent = [
@@ -85,7 +86,8 @@ Be strict but fair; consider title, body, tags, and image description if present
             type: 'object',
             properties: {
               match_percentage: { type: 'number' },
-              reasoning: { type: 'string' }
+              reasoning: { type: 'string' },
+              recommendation: { type: 'string' }
             },
             required: ['match_percentage']
           }
@@ -105,7 +107,8 @@ Be strict but fair; consider title, body, tags, and image description if present
 
     return {
       score: match,
-      reasoning: parsed.reasoning || ''
+      reasoning: parsed.reasoning || '',
+      recommendation: parsed.recommendation || ''
     };
   } catch (error) {
     console.error('Failed to review thread with OpenAI', error);

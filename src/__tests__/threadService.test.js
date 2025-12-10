@@ -93,7 +93,11 @@ describe('threadService.createThread', () => {
   });
 
   it('rejects thread when relevance score is below threshold', async () => {
-    reviewThread.mockResolvedValue({ score: 60, reasoning: 'Off-topic content.' });
+    reviewThread.mockResolvedValue({
+      score: 60,
+      reasoning: 'Off-topic content.',
+      recommendation: 'Align with SDG 11 themes.'
+    });
 
     await expect(
       createThread({
@@ -108,7 +112,11 @@ describe('threadService.createThread', () => {
       statusCode: 400,
       message: 'Thread is not valid because the message is not relevant with the categories',
       status: 'REVIEW_FAILED',
-      details: { status: 'REVIEW_FAILED' }
+      details: {
+        status: 'REVIEW_FAILED',
+        score: 60,
+        review_text: 'Align with SDG 11 themes.'
+      }
     });
 
     expect(prisma.thread.create).not.toHaveBeenCalled();
